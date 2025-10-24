@@ -1,59 +1,96 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-import cookieParser from "cookie-parser";
-import { createServer } from "http";
-import { Server as SocketServer } from "socket.io";
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import dotenv from 'dotenv';
+import appRouter from './src/app.router.js';
+import connectDB from './DB/dbConnection.js';
 
 dotenv.config();
 
 const app = express();
-
-// ✅ Middlewares
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "*", // Allow your frontend
-  credentials: true,
-}));
-app.use(express.json());
-app.use(cookieParser());
-
-// ✅ Example route
-app.get("/", (req, res) => {
-  res.send("✅ Backend is running successfully!");
-});
-
-// ✅ Connect to MongoDB
-// const MONGO_URI = process.env.MONGO_URI || "your_local_mongo_url";
-mongoose.connect(process.env.MONGO_URL)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
-
-// ✅ Server setup
-const PORT = process.env.PORT || 5000;
 const server = createServer(app);
 
-// ✅ Socket.io setup
-const io = new SocketServer(server, {
+// ✅ CRITICAL: Increase server timeout for large file uploads
+server.timeout = 30 * 60 * 1000; // 30 minutes
+server.headersTimeout = 30 * 60 * 1000; // 30 minutes
+server.keepAliveTimeout = 30 * 60 * 1000; // 30 minutes
+app.get("/", (req, res) => {
+  res.json({ message: "Backend is working!" });
+});
+
+// إعداد Socket.io
+const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "*",
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"],
+    credentials: true
   },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-io.on("connection", (socket) => {
-  console.log("⚡ A user connected:", socket.id);
-  socket.on("disconnect", () => {
-    console.log("❌ A user disconnected:", socket.id);
+// تخزين المستخدمين المتصلين
+const connectedUsers = new Map();
+
+// التعامل مع اتصالات Socket
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('join', (userId) => {
+    connectedUsers.set(userId, socket.id);
+    console.log(`User ${userId} joined with socket ${socket.id}`);
+  });
+
+  socket.on('sendMessage', (data) => {
+    const { receiverId, message } = data;
+    const receiverSocketId = connectedUsers.get(receiverId);
+    
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('newMessage', message);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    for (let [userId, socketId] of connectedUsers.entries()) {
+      if (socketId === socket.id) {
+        connectedUsers.delete(userId);
+        console.log(`User ${userId} disconnected`);
+        break;
+      }
+    }
   });
 });
 
-// ✅ Start server (only if not running in Vercel function)
-if (process.env.NODE_ENV !== "production") {
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-  });
-}
+// ✅ CRITICAL: Global timeout middleware for all routes
+app.use((req, res, next) => {
+  req.setTimeout(30 * 60 * 1000); // 30 minutes
+  res.setTimeout(30 * 60 * 1000); // 30 minutes
+  next();
+});
 
-// ✅ Export app for Vercel (important)
-export default app;
+// ✅ Specific timeout for upload routes
+app.use('/api/videos/upload', (req, res, next) => {
+  req.setTimeout(30 * 60 * 1000);
+  res.setTimeout(30 * 60 * 1000);
+  next();
+});
+
+// Handle uncaught exceptions and rejections
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// تمرير io إلى appRouter
+appRouter(app, express, io);
+
+connectDB();
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server timeout set to: ${server.timeout}ms`);
+});

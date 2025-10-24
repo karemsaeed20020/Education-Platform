@@ -1,6 +1,6 @@
 'use client';
 import Image from "next/image";
-import Login1 from "@/public/Register.png";
+// import Login1 from "@/public/Register.png";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -115,7 +115,7 @@ export default function Register() {
       {/* Desktop: Show image on LEFT side */}
       <div className="relative w-5/12 hidden md:block">
         <Image
-          src={Login1}
+          src='/Register.png'
           alt="صورة التسجيل"
           fill
           className="object-cover"
@@ -126,7 +126,7 @@ export default function Register() {
       {/* Mobile: Show image at top */}
       <div className="relative w-full h-48 md:hidden">
         <Image
-          src={Login1}
+          src='/Register.png'
           alt="صورة التسجيل"
           fill
           className="object-cover"

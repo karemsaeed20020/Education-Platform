@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
  experimental: {
     serverComponentsExternalPackages: [],
   },
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;

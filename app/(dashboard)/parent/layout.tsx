@@ -68,6 +68,7 @@ export default function AdminLayout({
       <Navbar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
+        user={user}
       />
       
       {/* Sidebar Overlay - يظهر فقط على الجوال وعند فتح السايدبار */}

@@ -28,12 +28,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/redux/store';
+// import { User as UserType } from '@/types'; // ✅ your User type
 
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  // user: UserType; // ✅ Add this line
 }
-
 // حفظ الحالة في localStorage
 const useAdminStatus = () => {
   const [adminStatus, setAdminStatus] = useState<'online' | 'offline' | 'away'>('online');

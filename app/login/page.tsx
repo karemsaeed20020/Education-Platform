@@ -44,7 +44,7 @@ export default function Login() {
       if (user.role === 'admin') {
         router.push('/admin/dashboard');
       }else if (user.role === 'parent') {
-      router.push('/parent/');
+      router.push('/parent/results');
     } else {
         router.push('/');
       }

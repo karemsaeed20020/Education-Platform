@@ -6,12 +6,13 @@ import { RootState, AppDispatch } from '@/redux/store';
 import { logoutUser } from '@/redux/slices/authSlice';
 import { useRouter } from 'next/navigation';
 import { Menu, X, Bell, User, ChevronDown, LogOut, GraduationCap, Settings } from 'lucide-react';
+import { User as UserType } from '@/types';
 
 interface NavbarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  user: UserType;
 }
-
 // استخدام نفس الـ hook للحالة مع تحديث تلقائي
 const useAdminStatus = () => {
   const [adminStatus, setAdminStatus] = useState<'online' | 'offline' | 'away'>('online');

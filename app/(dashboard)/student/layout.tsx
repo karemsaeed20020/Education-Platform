@@ -6,6 +6,8 @@ import { RootState } from '@/redux/store';
 import Sidebar from '@/components/students/Sidebar';
 import Navbar from '@/components/admin/Navbar';
 
+
+
 export default function AdminLayout({
   children,
 }: {
@@ -46,7 +48,7 @@ export default function AdminLayout({
       <Sidebar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
-        user={user} 
+        // user={user} 
       />
       
       <main

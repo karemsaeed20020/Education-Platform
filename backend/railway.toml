@@ -1,9 +1,10 @@
-[build]
+# Update railway.toml with stronger commands
+echo '[build]
 builder = "nixpacks"
-buildCommand = "npm install --legacy-peer-deps"
+buildCommand = "npm install --legacy-peer-deps --package-lock=false"
 
 [deploy]
 startCommand = "npm start"
 
 [service]
-restartPolicyType = "on_failure"
+restartPolicyType = "on_failure"' > railway.toml

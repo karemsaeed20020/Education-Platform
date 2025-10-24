@@ -1,6 +1,5 @@
 "use client";
 import Image from "next/image";
-// import Login1 from "@/public/login.png";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -34,18 +33,25 @@ export default function Login() {
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
 
   const { user, loading, error } = useSelector((state: RootState) => state.auth);
 
+  // External education image from Unsplash
+  const educationImage = "https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80";
+
+  // Fallback gradient if image fails to load
+  const fallbackGradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+
   useEffect(() => {
     if (user && !loading) {
       if (user.role === 'admin') {
         router.push('/admin/dashboard');
-      }else if (user.role === 'parent') {
-      router.push('/parent/results');
-    } else {
+      } else if (user.role === 'parent') {
+        router.push('/parent/results');
+      } else {
         router.push('/');
       }
     }
@@ -65,14 +71,29 @@ export default function Login() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Mobile: Show image at top */}
-      <div className="relative w-full h-48 md:hidden">
-        <Image
-          src='/login.png'
-          alt="صورة تسجيل الدخول"
-          fill
-          className="object-cover"
-          priority
-        />
+      <div 
+        className="relative w-full h-48 md:hidden"
+        style={{
+          background: imageError ? fallbackGradient : 'none'
+        }}
+      >
+        {!imageError ? (
+          <Image
+            src={educationImage}
+            alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
+            fill
+            className="object-cover"
+            priority
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white">
+            <div className="text-center p-4">
+              <h3 className="text-xl font-bold mb-2">منصة التعليم الإلكتروني</h3>
+              <p className="text-sm">سجل دخولك إلى عالم المعرفة</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Form Section */}
@@ -204,44 +225,6 @@ export default function Login() {
                 </Button>
               </motion.div>
 
-              {/* OR Divider */}
-              {/* <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                className="flex items-center my-4 md:my-6"
-              >
-                <div className="flex-grow border-t border-gray-300"></div>
-                <span dir="rtl" className="px-3 md:px-4 text-gray-500 text-sm font-medium">
-                  أو
-                </span>
-                <div className="flex-grow border-t border-gray-300"></div>
-              </motion.div> */}
-
-              {/* Google Login
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-              >
-                <Button
-                  variant="outline"
-                  className="w-full flex justify-center items-center py-6 text-base md:text-sm cursor-pointer"
-                  dir="rtl"
-                  type="button"
-                >
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 ml-2 md:ml-3" viewBox="0 0 24 24">
-                      <path
-                        fill="currentColor"
-                        d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
-                      />
-                    </svg>
-                    <span>سجّل الدخول باستخدام جوجل</span>
-                  </div>
-                </Button>
-              </motion.div> */}
-
               {/* Register Link */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -251,9 +234,9 @@ export default function Login() {
               >
                 <p dir="rtl" className="text-sm text-gray-600">
                   ليس لديك حساب؟{" "}
-                  <a href="/register" className="text-blue-600 hover:underline font-medium">
+                  <Link href="/register" className="text-blue-600 hover:underline font-medium">
                     سجّل الآن
-                  </a>
+                  </Link>
                 </p>
               </motion.div>
             </form>
@@ -262,14 +245,29 @@ export default function Login() {
       </div>
 
       {/* Desktop: Image */}
-      <div className="relative w-5/12 hidden md:block">
-        <Image
-          src='/login.png'
-          alt="صورة تسجيل الدخول"
-          fill
-          className="object-cover"
-          priority
-        />
+      <div 
+        className="relative w-5/12 hidden md:block"
+        style={{
+          background: imageError ? fallbackGradient : 'none'
+        }}
+      >
+        {!imageError ? (
+          <Image
+            src={educationImage}
+            alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
+            fill
+            className="object-cover"
+            priority
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white">
+            <div className="text-center p-8">
+              <h3 className="text-2xl font-bold mb-4">منصة التعليم الإلكتروني</h3>
+              <p className="text-lg">سجل دخولك إلى عالم المعرفة</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

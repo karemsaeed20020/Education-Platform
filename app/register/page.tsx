@@ -1,6 +1,5 @@
 'use client';
 import Image from "next/image";
-// import Login1 from "@/public/Register.png";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -51,9 +50,16 @@ export default function Register() {
   const [showOTP, setShowOTP] = useState(false);
   const [registrationEmail, setRegistrationEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
   
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
+
+  // Single external education image from Unsplash
+  const educationImage = "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
+
+  // Fallback gradient if image fails to load
+  const fallbackGradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
   // Clear any existing auth state when component mounts
   useEffect(() => {
@@ -86,12 +92,12 @@ export default function Register() {
     }
   };
 
-
-   const handleVerifySuccess = () => {
+  const handleVerifySuccess = () => {
     // After successful OTP verification, redirect to login page
     toast.success("تم التحقق من حسابك بنجاح! يمكنك الآن تسجيل الدخول.");
     router.push('/login');
   };
+
   const handleBackFromOTP = () => {
     setShowOTP(false);
     // Optionally clear any stored data
@@ -113,25 +119,55 @@ export default function Register() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Desktop: Show image on LEFT side */}
-      <div className="relative w-5/12 hidden md:block">
-        <Image
-          src='/Register.png'
-          alt="صورة التسجيل"
-          fill
-          className="object-cover"
-          priority
-        />
+      <div 
+        className="relative w-5/12 hidden md:block"
+        style={{
+          background: imageError ? fallbackGradient : 'none'
+        }}
+      >
+        {!imageError ? (
+          <Image
+            src={educationImage}
+            alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
+            fill
+            className="object-cover"
+            priority
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white">
+            <div className="text-center p-8">
+              <h3 className="text-2xl font-bold mb-4">منصة التعليم الإلكتروني</h3>
+              <p className="text-lg">انضم إلى مجتمعنا التعليمي</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile: Show image at top */}
-      <div className="relative w-full h-48 md:hidden">
-        <Image
-          src='/Register.png'
-          alt="صورة التسجيل"
-          fill
-          className="object-cover"
-          priority
-        />
+      <div 
+        className="relative w-full h-48 md:hidden"
+        style={{
+          background: imageError ? fallbackGradient : 'none'
+        }}
+      >
+        {!imageError ? (
+          <Image
+            src={educationImage}
+            alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
+            fill
+            className="object-cover"
+            priority
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white">
+            <div className="text-center p-4">
+              <h3 className="text-xl font-bold mb-2">منصة التعليم الإلكتروني</h3>
+              <p className="text-sm">انضم إلى مجتمعنا التعليمي</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Form Section */}
@@ -369,43 +405,6 @@ export default function Register() {
                   {loading ? "جارٍ إنشاء الحساب..." : "إنشاء الحساب"}
                 </Button>
               </motion.div>
-
-              {/* OR Divider - Animated */}
-              {/* <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.7 }}
-                className="flex items-center my-4 md:my-6"
-              >
-                <div className="flex-grow border-t border-gray-300"></div>
-                <span dir="rtl" className="px-3 md:px-4 text-gray-500 text-sm font-medium">
-                  أو
-                </span>
-                <div className="flex-grow border-t border-gray-300"></div>
-              </motion.div> */}
-
-              {/* Sign up with Google - Animated */}
-              {/* <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-              >
-                <Button
-                  variant="outline"
-                  className="w-full flex justify-center items-center py-6 text-base md:text-sm cursor-pointer"
-                  dir="rtl"
-                >
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 ml-2 md:ml-3" viewBox="0 0 24 24">
-                      <path
-                        fill="currentColor"
-                        d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
-                      />
-                    </svg>
-                    <span>سجّل باستخدام جوجل</span>
-                  </div>
-                </Button>
-              </motion.div> */}
 
               {/* Login Link - Animated */}
               <motion.div

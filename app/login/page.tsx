@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import Login1 from "@/public/login.png";
+// import Login1 from "@/public/login.png";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -67,7 +67,7 @@ export default function Login() {
       {/* Mobile: Show image at top */}
       <div className="relative w-full h-48 md:hidden">
         <Image
-          src={Login1}
+          src='/login.png'
           alt="صورة تسجيل الدخول"
           fill
           className="object-cover"
@@ -264,7 +264,7 @@ export default function Login() {
       {/* Desktop: Image */}
       <div className="relative w-5/12 hidden md:block">
         <Image
-          src={Login1}
+          src='/login.png'
           alt="صورة تسجيل الدخول"
           fill
           className="object-cover"

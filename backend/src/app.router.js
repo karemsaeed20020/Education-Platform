@@ -1,4 +1,3 @@
-// src/app.router.js
 import { fileURLToPath } from 'url';
 import { errorResponseHandler } from './middlewares/errorHandler.middleware.js';
 import authRoutes from './modules/Auth/auth.router.js';
@@ -33,22 +32,43 @@ export const asyncHandler = (fn) => {
   };
 };
 
-const appRouter = (app, express, io) => {
+// ✅ Remove io parameter
+const appRouter = (app, express) => {
   // Middlewares
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   app.use(cookieParser());
+  
+  // ✅ Update CORS for production
   app.use(cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://your-frontend-app.vercel.app" // Replace with your actual frontend URL
+    ],
     credentials: true,
   }));
 
   // CORS headers
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+    const allowedOrigins = [
+      "http://localhost:3000", 
+      "https://your-frontend-app.vercel.app" // Replace with your actual frontend URL
+    ];
+    
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
 
     next();
   });
@@ -59,11 +79,7 @@ const appRouter = (app, express, io) => {
   // Serve static uploads folder
   app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-  // ✅ Add io to req object so all routes can access it
-  app.use((req, res, next) => {
-    req.io = io;
-    next();
-  });
+  // ✅ Remove Socket.io middleware since it won't work on Vercel
 
   // Routes
   app.use("/api/auth", authRoutes);
@@ -76,7 +92,7 @@ const appRouter = (app, express, io) => {
   app.use('/api/exams', examRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/videos', videoRoutes);
-  app.use('/api/chat', chatRoutes); // This includes all chat routes including parent-admin
+  app.use('/api/chat', chatRoutes);
   app.use('/api/admin', adminParentRoutes);
   app.use('/api/parent', parentRoutes);
   app.use('/api/courses', courseRoutes);
@@ -84,6 +100,15 @@ const appRouter = (app, express, io) => {
   app.use('/api/reviews', reviewRoutes);
   app.use('/api/checkout', checkoutRoutes);
   app.use('/api/admin', adminRoutes);
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  });
 
   // Global Error Handler 
   app.use(errorResponseHandler);

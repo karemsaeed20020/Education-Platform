@@ -1,0 +1,9 @@
+providers:
+  node:
+    startCommand: node index.js
+
+build:
+  install:
+    - npm install --package-lock=false --no-audit --no-fund
+  build:
+    - echo "🚀 Building Express.js + Socket.io app"

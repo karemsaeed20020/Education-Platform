@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/StudentExam.tsx
 'use client';
 
@@ -9,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Award, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Question {
   _id: string;
@@ -59,22 +61,25 @@ export default function StudentExam({ examId }: { examId: string }) {
 
   const fetchExam = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}`, {
-        credentials: 'include'
-      });
+      const response = await api.get(`/api/exams/${examId}`);
       
-      if (!response.ok) {
+      if (response.data.status === 'success') {
+        setExam(response.data.data.exam);
+        setTimeLeft(response.data.data.exam.duration * 60); // Convert to seconds
+        
+        // Initialize empty answers object
+        const initialAnswers: Record<string, number> = {};
+        response.data.data.exam.questions.forEach((question: Question) => {
+          initialAnswers[question._id] = -1; // -1 means not answered
+        });
+        setAnswers(initialAnswers);
+      } else {
         throw new Error('فشل في تحميل الاختبار');
       }
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        setExam(data.data.exam);
-        setTimeLeft(data.data.exam.duration * 60); // Convert to seconds
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching exam:', error);
-      toast.error('فشل في تحميل الاختبار');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الاختبار';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -109,6 +114,13 @@ export default function StudentExam({ examId }: { examId: string }) {
     if (!confirm('هل أنت متأكد من تقديم الإجابات؟ لا يمكنك تعديلها بعد الإرسال.')) {
       return;
     }
+    
+    // Check if all questions are answered
+    const unanswered = Object.values(answers).filter(answer => answer === -1).length;
+    if (unanswered > 0 && !confirm(`لديك ${unanswered} أسئلة لم تتم الإجابة عليها. هل تريد المتابعة؟`)) {
+      return;
+    }
+    
     await submitAnswers();
   };
 
@@ -120,29 +132,30 @@ export default function StudentExam({ examId }: { examId: string }) {
   const submitAnswers = async () => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ answers })
+      // Filter out unanswered questions (-1 values)
+      const submittedAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([_, answer]) => answer !== -1)
+      );
+
+      const response = await api.post(`/api/exams/${examId}/submit`, { 
+        answers: submittedAnswers 
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في تقديم الإجابات');
-      }
-
-      if (response.ok) {
-        setResult(data.data.result);
+      if (response.data.status === 'success') {
+        setResult(response.data.data.result);
         toast.success('تم تقديم الإجابات بنجاح');
+        
+        // Refresh the exams list to update completion status
+        setTimeout(() => {
+          window.dispatchEvent(new Event('examsUpdated'));
+        }, 1000);
+      } else {
+        throw new Error(response.data.message || 'فشل في تقديم الإجابات');
       }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error submitting answers:', error);
-      toast.error(error.message || 'فشل في تقديم الإجابات');
+      const errorMessage = error.response?.data?.message || 'فشل في تقديم الإجابات';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -179,7 +192,7 @@ export default function StudentExam({ examId }: { examId: string }) {
     return <ExamResultView result={result} exam={exam} />;
   }
 
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers).filter(answer => answer !== -1).length;
   const totalQuestions = exam.questions.length;
 
   return (

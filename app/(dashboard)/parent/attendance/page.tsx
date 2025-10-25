@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, User, TrendingUp, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface AttendanceRecord {
   _id: string;
@@ -47,21 +49,17 @@ export default function ParentAttendancePage() {
 
   const fetchAttendance = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/children/attendance', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/children/attendance');
 
-      if (!response.ok) {
+      if (response.data.status === 'success') {
+        setAttendance(response.data.data.attendance);
+      } else {
         throw new Error('فشل في جلب بيانات الحضور');
       }
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        setAttendance(data.data.attendance);
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching attendance:', error);
-      toast.error('فشل في تحميل بيانات الحضور');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الحضور';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -69,18 +67,15 @@ export default function ParentAttendancePage() {
 
   const fetchChildren = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/dashboard', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/dashboard');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setChildren(data.data.parent.children);
-        }
+      if (response.data.status === 'success') {
+        setChildren(response.data.data.parent.children);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching children:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الأبناء';
+      toast.error(errorMessage);
     }
   };
 

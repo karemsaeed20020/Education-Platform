@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,6 +10,7 @@ import { Eye, Play, Heart, Filter, Search, Download, ExternalLink } from 'lucide
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Video {
   _id: string;
@@ -47,28 +49,26 @@ export default function StudentVideosPage() {
   const fetchVideos = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (filters.grade && filters.grade !== 'الكل') params.append('grade', filters.grade);
-      if (filters.chapter && filters.chapter !== 'الكل') params.append('chapter', filters.chapter);
+      
+      // Build query parameters
+      const params: any = {};
+      if (filters.grade && filters.grade !== 'الكل') params.grade = filters.grade;
+      if (filters.chapter && filters.chapter !== 'الكل') params.chapter = filters.chapter;
 
       console.log('🔄 Fetching videos...');
-      const response = await fetch(`http://localhost:5000/api/videos?${params}`, {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/videos', { params });
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Videos fetched:', data.data.videos);
-        if (data.status === 'success') {
-          setVideos(data.data.videos);
-        }
+      console.log('✅ Videos fetched:', response.data.data.videos);
+      if (response.data.status === 'success') {
+        setVideos(response.data.data.videos);
       } else {
-        console.error('❌ Failed to fetch videos:', response.status);
+        console.error('❌ Failed to fetch videos:', response.data);
         toast.error('فشل في تحميل الفيديوهات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching videos:', error);
-      toast.error('فشل في تحميل الفيديوهات');
+      const message = error.response?.data?.message || 'فشل في تحميل الفيديوهات';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -79,12 +79,9 @@ export default function StudentVideosPage() {
     e.stopPropagation();
     
     try {
-      const response = await fetch(`http://localhost:5000/api/videos/${videoId}/like`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      const response = await api.post(`/api/videos/${videoId}/like`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         // Update like status locally
         setVideos(prev => prev.map(video => {
           if (video._id === videoId) {
@@ -96,9 +93,17 @@ export default function StudentVideosPage() {
           }
           return video;
         }));
+        
+        if (response.data.data.liked) {
+          toast.success('تم إضافة الإعجاب');
+        } else {
+          toast.success('تم إزالة الإعجاب');
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error liking video:', error);
+      const message = error.response?.data?.message || 'فشل في تحديث الإعجاب';
+      toast.error(message);
     }
   };
 

@@ -18,6 +18,7 @@ import StudentDetailsModal from '@/components/admin/StudentDetailsModal';
 // Types
 import { Student, PaginationInfo } from '@/types';
 import Loading from '@/app/loading';
+import { api } from '@/redux/slices/authSlice';
 
 export default function StudentsPage() {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -74,19 +75,13 @@ export default function StudentsPage() {
   const fetchStudents = async (page: number = 1, limit: number = itemsPerPage) => {
     try {
       setLoading(true);
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/users/students?page=${page}&limit=${limit}`,
-        {
-          method: 'GET',
-          credentials: 'include',
-        }
+      
+      // ✅ USE API INSTANCE INSTEAD OF FETCH
+      const res = await api.get(
+        `/api/users/students?page=${page}&limit=${limit}`
       );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'فشل تحميل قائمة الطلاب');
-      }
+      const data = res.data;
 
       let studentsData: Student[] = [];
       let paginationData: PaginationInfo = {
@@ -124,18 +119,20 @@ export default function StudentsPage() {
       }
 
       setStudents(studentsData);
-      setFilteredStudents(studentsData); // Initialize filtered students
+      setFilteredStudents(studentsData);
       setPagination(paginationData);
       setError(null);
 
     } catch (err: any) {
       console.error('Fetch students error:', err);
-      setError(err.message || 'حدث خطأ أثناء جلب البيانات');
-      toast.error(err.message || 'حدث خطأ أثناء جلب البيانات');
+      const message = err.response?.data?.message || 'حدث خطأ أثناء جلب البيانات';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Initial fetch
   useEffect(() => {
@@ -159,23 +156,12 @@ export default function StudentsPage() {
   }
 }, [searchTerm, students]);
 
-  // Delete student function
   const handleDeleteStudent = async (studentId: string) => {
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/users/${studentId}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'فشل حذف الطالب');
-      }
+      // ✅ USE API INSTANCE INSTEAD OF FETCH
+      await api.delete(`/api/users/${studentId}`);
 
       // Remove student from local state
       setStudents(prev => prev.filter(student => student._id !== studentId));
@@ -192,11 +178,13 @@ export default function StudentsPage() {
       
     } catch (err: any) {
       console.error('Delete student error:', err);
-      setError(err.message || 'حدث خطأ أثناء حذف الطالب');
-      toast.error(err.message || 'حدث خطأ أثناء حذف الطالب');
+      const message = err.response?.data?.message || 'حدث خطأ أثناء حذف الطالب';
+      setError(message);
+      toast.error(message);
       setDeleteModal(prev => ({ ...prev, isLoading: false }));
     }
   };
+
 
   // Modal handlers
   const openDeleteModal = (student: Student) => {

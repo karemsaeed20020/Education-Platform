@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/admin/courses/new/page.tsx
 'use client';
 
@@ -15,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, Upload, Video, BookOpen, X, Clock, Loader2 } from 'lucide-react';
 import { VideoSelectionModal } from '@/components/VideoSelectionModal';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Chapter {
   id: string;
@@ -43,6 +45,19 @@ interface ApiVideo {
   grade: string;
   chapter: string;
 }
+
+// 🔹 دوال API لإنشاء الكورسات باستخدام axios
+const coursesApi = {
+  // إنشاء كورس جديد
+  createCourse: async (formData: FormData) => {
+    const response = await api.post('/api/courses', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+};
 
 export default function CreateCoursePage() {
   const router = useRouter();
@@ -229,24 +244,19 @@ export default function CreateCoursePage() {
       // Append thumbnail
       formDataToSend.append('thumbnail', thumbnail);
 
-      // Call your Node.js backend directly
-      const response = await fetch('http://localhost:5000/api/courses', {
-        method: 'POST',
-        body: formDataToSend,
-        credentials: 'include', // Include cookies for authentication
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const result = await coursesApi.createCourse(formDataToSend);
 
-      if (response.ok) {
-        const result = await response.json();
+      if (result.status === 'success') {
         toast.success('تم إنشاء الكورس بنجاح!');
         router.push('/admin/courses');
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ في إنشاء الكورس');
+        throw new Error(result.message || 'حدث خطأ في إنشاء الكورس');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating course:', error);
-      toast.error('حدث خطأ في إنشاء الكورس');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في إنشاء الكورس';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

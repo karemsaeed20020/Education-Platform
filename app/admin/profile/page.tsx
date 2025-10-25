@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 // ----------------- ZOD SCHEMAS -----------------
 const profileSchema = z.object({
@@ -165,6 +166,85 @@ const ProfilePage = () => {
     }
   };
 
+  // ----------------- DIRECT API CALLS (بدون Redux) -----------------
+  const updateProfileDirect = async (formData: ProfileFormData) => {
+    setSaving(true);
+    try {
+      const payload = new FormData();
+      payload.append('username', formData.username);
+      payload.append('phone', formData.phone);
+      payload.append('bio', formData.bio);
+      if (formData.avatar?.[0]) {
+        payload.append('avatar', formData.avatar[0]);
+      }
+
+      const response = await api.patch('/api/users/profile', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.success) {
+        toast.success('تم تحديث الملف الشخصي بنجاح');
+        // تحديث الـ state محلياً
+        setProfile(prev => prev ? { ...prev, ...response.data.data.user } : null);
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || 'فشل في تحديث الملف الشخصي';
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePasswordDirect = async (formData: PasswordFormData) => {
+    setSaving(true);
+    try {
+      if (!currentUser?.email) {
+        toast.error('البريد الإلكتروني غير متوفر');
+        return;
+      }
+
+      const response = await api.patch('/api/auth/reset-password', {
+        email: currentUser.email,
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword,
+        confirmPassword: formData.confirmPassword,
+      });
+
+      if (response.data.success) {
+        toast.success('تم تغيير كلمة المرور بنجاح');
+        resetPasswordForm();
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || 'فشل في تغيير كلمة المرور';
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ----------------- GET PROFILE DIRECT (بدون Redux) -----------------
+  const fetchProfileDirect = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/api/users/profile');
+      
+      if (response.data.success) {
+        const userData = response.data.data.user;
+        setProfile(userData);
+        setValue('username', userData.username || '');
+        setValue('phone', userData.phone || '');
+        setValue('bio', userData.bio || '');
+      }
+    } catch (err: any) {
+      console.error('Error fetching profile:', err);
+      toast.error('فشل في تحميل الملف الشخصي');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">جاري تحميل الملف الشخصي...</div>;
   if (!profile) return <div className="min-h-screen flex items-center justify-center text-red-600">فشل في تحميل الملف الشخصي</div>;
 
@@ -239,9 +319,24 @@ const ProfilePage = () => {
                       {errors.bio && <p className="text-red-600 text-sm mt-1">{errors.bio.message}</p>}
                     </div>
 
-                    <Button type="submit" disabled={saving}>
-                      {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="submit" 
+                        disabled={saving}
+                        onClick={handleSubmit(onSubmitProfile)}
+                      >
+                        {saving ? 'جاري الحفظ...' : 'حفظ (Redux)'}
+                      </Button>
+                      
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={handleSubmit(updateProfileDirect)}
+                      >
+                        {saving ? 'جاري الحفظ...' : 'حفظ (Direct API)'}
+                      </Button>
+                    </div>
                   </form>
                 </CardContent>
               </Card>
@@ -305,9 +400,23 @@ const ProfilePage = () => {
                       )}
                     </div>
 
-                    <Button type="submit" disabled={saving}>
-                      {saving ? 'جاري التغيير...' : 'تغيير كلمة المرور'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="submit" 
+                        disabled={saving}
+                      >
+                        {saving ? 'جاري التغيير...' : 'تغيير (Redux)'}
+                      </Button>
+                      
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={handlePasswordSubmitForm(changePasswordDirect)}
+                      >
+                        {saving ? 'جاري التغيير...' : 'تغيير (Direct API)'}
+                      </Button>
+                    </div>
                   </form>
                 </CardContent>
               </Card>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/student/exams/[id]/result/page.tsx
 'use client';
 
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Award, FileText, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface ExamResult {
   _id: string;
@@ -49,35 +51,26 @@ export default function ExamResultPage() {
   const fetchResult = async () => {
     try {
       // First, get the exam details
-      const examResponse = await fetch(`http://localhost:5000/api/exams/${examId}`, {
-        credentials: 'include'
-      });
+      const examResponse = await api.get(`/api/exams/${examId}`);
       
-      if (examResponse.ok) {
-        const examData = await examResponse.json();
-        setExam(examData.data.exam);
+      if (examResponse.data.status === 'success') {
+        setExam(examResponse.data.data.exam);
       }
 
       // Then, get the results for this exam
-      const resultsResponse = await fetch(`http://localhost:5000/api/exams/${examId}/results`, {
-        credentials: 'include'
-      });
+      const resultsResponse = await api.get(`/api/exams/${examId}/results`);
       
-      if (!resultsResponse.ok) {
-        throw new Error('فشل في جلب النتائج');
-      }
-      
-      const resultsData = await resultsResponse.json();
-      if (resultsData.status === 'success' && resultsData.data.results.length > 0) {
+      if (resultsResponse.data.status === 'success' && resultsResponse.data.data.results.length > 0) {
         // Get the latest result
-        const latestResult = resultsData.data.results[0];
+        const latestResult = resultsResponse.data.data.results[0];
         setResult(latestResult);
       } else {
         toast.error('لا توجد نتائج لهذا الاختبار');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching result:', error);
-      toast.error('فشل في تحميل النتيجة');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل النتيجة';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

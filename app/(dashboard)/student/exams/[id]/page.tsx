@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, Award, FileText, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useParams, useRouter } from 'next/navigation';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Question {
   _id: string;
@@ -61,27 +62,35 @@ export default function StudentExamPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
 
   useEffect(() => {
+    checkExamAccess();
     fetchExam();
   }, [examId]);
 
+  const checkExamAccess = async () => {
+    try {
+      const response = await api.get(`/api/exams/${examId}/can-take`);
+      
+      if (!response.data.data.canTake) {
+        toast.error(response.data.data.reason || 'لا يمكنك الوصول إلى هذا الاختبار');
+        router.push('/student/exams');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking exam access:', error);
+    }
+  };
+
   const fetchExam = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}`, {
-        credentials: 'include'
-      });
+      const response = await api.get(`/api/exams/${examId}`);
       
-      if (!response.ok) {
-        throw new Error('فشل في تحميل الاختبار');
-      }
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        setExam(data.data.exam);
-        setTimeLeft(data.data.exam.duration * 60); // Convert to seconds
+      if (response.data.status === 'success') {
+        setExam(response.data.data.exam);
+        setTimeLeft(response.data.data.exam.duration * 60); // Convert to seconds
         
         // Initialize empty answers object
         const initialAnswers: Record<string, number> = {};
-        data.data.exam.questions.forEach((question: Question) => {
+        response.data.data.exam.questions.forEach((question: Question) => {
           initialAnswers[question._id] = -1; // -1 means not answered
         });
         setAnswers(initialAnswers);
@@ -112,30 +121,6 @@ export default function StudentExamPage() {
     return () => clearInterval(timer);
   }, [timeLeft, result]);
 
-  useEffect(() => {
-  checkExamAccess();
-  fetchExam();
-}, [examId]);
-
-const checkExamAccess = async () => {
-  try {
-    const response = await fetch(`http://localhost:5000/api/exams/${examId}/can-take`, {
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (!data.data.canTake) {
-        toast.error(data.data.reason || 'لا يمكنك الوصول إلى هذا الاختبار');
-        router.push('/student/exams');
-        return;
-      }
-    }
-  } catch (error) {
-    console.error('Error checking exam access:', error);
-  }
-};
-
   const handleAnswerChange = (questionId: string, answerIndex: number) => {
     setAnswers(prev => ({
       ...prev,
@@ -162,79 +147,34 @@ const checkExamAccess = async () => {
     await submitAnswers();
   };
 
-  // const submitAnswers = async () => {
-  //   setIsSubmitting(true);
-  //   try {
-  //     // Filter out unanswered questions (-1 values)
-  //     const submittedAnswers = Object.fromEntries(
-  //       Object.entries(answers).filter(([_, answer]) => answer !== -1)
-  //     );
-
-  //     const response = await fetch(`http://localhost:5000/api/exams/${examId}/submit`, {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       credentials: 'include',
-  //       body: JSON.stringify({ answers: submittedAnswers })
-  //     });
-
-  //     const data = await response.json();
-
-  //     if (!response.ok) {
-  //       throw new Error(data.message || 'فشل في تقديم الإجابات');
-  //     }
-
-  //     if (response.ok) {
-  //       setResult(data.data.result);
-  //       toast.success('تم تقديم الإجابات بنجاح');
-  //     }
-  //   } catch (error: any) {
-  //     console.error('Error submitting answers:', error);
-  //     toast.error(error.message || 'فشل في تقديم الإجابات');
-  //   } finally {
-  //     setIsSubmitting(false);
-  //   }
-  // };
-
   const submitAnswers = async () => {
-  setIsSubmitting(true);
-  try {
-    const submittedAnswers = Object.fromEntries(
-      Object.entries(answers).filter(([_, answer]) => answer !== -1)
-    );
+    setIsSubmitting(true);
+    try {
+      const submittedAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([_, answer]) => answer !== -1)
+      );
 
-    const response = await fetch(`http://localhost:5000/api/exams/${examId}/submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ answers: submittedAnswers })
-    });
+      const response = await api.post(`/api/exams/${examId}/submit`, { 
+        answers: submittedAnswers 
+      });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'فشل في تقديم الإجابات');
+      if (response.data.status === 'success') {
+        setResult(response.data.data.result);
+        toast.success('تم تقديم الإجابات بنجاح');
+        
+        // Refresh the exams list to update completion status
+        setTimeout(() => {
+          window.dispatchEvent(new Event('examsUpdated'));
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Error submitting answers:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تقديم الإجابات';
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (response.ok) {
-      setResult(data.data.result);
-      toast.success('تم تقديم الإجابات بنجاح');
-      
-      // Refresh the exams list to update completion status
-      setTimeout(() => {
-        window.dispatchEvent(new Event('examsUpdated'));
-      }, 1000);
-    }
-  } catch (error: any) {
-    console.error('Error submitting answers:', error);
-    toast.error(error.message || 'فشل في تقديم الإجابات');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

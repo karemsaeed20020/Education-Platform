@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/ExamResultsTeacher.tsx
 'use client';
 
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Download, Eye, Award, User, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface ExamResult {
   _id: string;
@@ -56,68 +58,73 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
 
   const fetchResults = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}/results`, {
-        credentials: 'include'
-      });
+      const response = await api.get(`/api/exams/${examId}/results`);
       
-      if (!response.ok) {
+      if (response.data.status === 'success') {
+        setResults(response.data.data.results);
+      } else {
         throw new Error('فشل في جلب النتائج');
       }
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        setResults(data.data.results);
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching results:', error);
-      toast.error('فشل في تحميل النتائج');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل النتائج';
+      toast.error(errorMessage);
     }
   };
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}/statistics`, {
-        credentials: 'include'
-      });
+      const response = await api.get(`/api/exams/${examId}/statistics`);
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setStatistics(data.data.statistics);
-        }
+      if (response.data.status === 'success') {
+        setStatistics(response.data.data.statistics);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching statistics:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الإحصائيات';
+      // Don't show toast for statistics error as it's not critical
     } finally {
       setLoading(false);
     }
   };
 
   const exportToCSV = () => {
-    const headers = ['الطالب', 'البريد الإلكتروني', 'الدرجة المحصلة', 'الدرجة الكاملة', 'النسبة المئوية', 'التقدير', 'تاريخ التقديم'];
-    const csvData = results.map(result => [
-      result.student.username,
-      result.student.email,
-      result.obtainedScore.toString(),
-      result.totalScore.toString(),
-      `${result.percentage.toFixed(1)}%`,
-      result.percentage >= 50 ? 'ناجح' : 'راسب',
-      new Date(result.submittedAt).toLocaleDateString('ar-EG')
-    ]);
+    if (results.length === 0) {
+      toast.error('لا توجد بيانات للتصدير');
+      return;
+    }
 
-    const csvContent = [headers, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
+    try {
+      const headers = ['الطالب', 'البريد الإلكتروني', 'الدرجة المحصلة', 'الدرجة الكاملة', 'النسبة المئوية', 'التقدير', 'تاريخ التقديم'];
+      const csvData = results.map(result => [
+        result.student.username,
+        result.student.email,
+        result.obtainedScore.toString(),
+        result.totalScore.toString(),
+        `${result.percentage.toFixed(1)}%`,
+        result.percentage >= 50 ? 'ناجح' : 'راسب',
+        new Date(result.submittedAt).toLocaleDateString('ar-EG')
+      ]);
 
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `نتائج_الاختبار_${examId}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvContent = [headers, ...csvData]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `نتائج_الاختبار_${examId}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('تم تصدير النتائج بنجاح');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast.error('فشل في تصدير النتائج');
+    }
   };
 
   const getGradeColor = (percentage: number) => {
@@ -126,6 +133,14 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
     if (percentage >= 70) return 'text-yellow-600 bg-yellow-100';
     if (percentage >= 50) return 'text-orange-600 bg-orange-100';
     return 'text-red-600 bg-red-100';
+  };
+
+  const getGradeText = (percentage: number) => {
+    if (percentage >= 90) return 'ممتاز';
+    if (percentage >= 80) return 'جيد جداً';
+    if (percentage >= 70) return 'جيد';
+    if (percentage >= 50) return 'مقبول';
+    return 'راسب';
   };
 
   if (loading) {
@@ -176,10 +191,16 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
               <div className="text-center p-4 bg-green-100 rounded-lg">
                 <div className="text-xl font-bold text-green-800">{statistics.passCount}</div>
                 <div className="text-sm text-green-700">ناجح</div>
+                <div className="text-xs text-green-600">
+                  ({((statistics.passCount / statistics.totalSubmissions) * 100).toFixed(1)}%)
+                </div>
               </div>
               <div className="text-center p-4 bg-red-100 rounded-lg">
                 <div className="text-xl font-bold text-red-800">{statistics.failCount}</div>
                 <div className="text-sm text-red-700">راسب</div>
+                <div className="text-xs text-red-600">
+                  ({((statistics.failCount / statistics.totalSubmissions) * 100).toFixed(1)}%)
+                </div>
               </div>
             </div>
           </CardContent>
@@ -192,9 +213,15 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>نتائج الطلاب</CardTitle>
-              <CardDescription>قائمة بجميع نتائج الطلاب في هذا الاختبار</CardDescription>
+              <CardDescription>
+                قائمة بجميع نتائج الطلاب في هذا الاختبار ({results.length} طالب)
+              </CardDescription>
             </div>
-            <Button onClick={exportToCSV} variant="outline">
+            <Button 
+              onClick={exportToCSV} 
+              variant="outline"
+              disabled={results.length === 0}
+            >
               <Download className="h-4 w-4 ml-2" />
               تصدير النتائج
             </Button>
@@ -204,40 +231,40 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>الطالب</TableHead>
-                <TableHead>البريد الإلكتروني</TableHead>
-                <TableHead>الدرجة المحصلة</TableHead>
-                <TableHead>النسبة المئوية</TableHead>
-                <TableHead>التقدير</TableHead>
-                <TableHead>تاريخ التقديم</TableHead>
-                <TableHead>الإجراءات</TableHead>
+                <TableHead className="text-right">الطالب</TableHead>
+                <TableHead className="text-right">البريد الإلكتروني</TableHead>
+                <TableHead className="text-right">الدرجة المحصلة</TableHead>
+                <TableHead className="text-right">النسبة المئوية</TableHead>
+                <TableHead className="text-right">التقدير</TableHead>
+                <TableHead className="text-right">تاريخ التقديم</TableHead>
+                <TableHead className="text-right">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {results.map((result) => (
                 <TableRow key={result._id}>
-                  <TableCell className="font-medium">{result.student.username}</TableCell>
-                  <TableCell>{result.student.email}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium text-right">{result.student.username}</TableCell>
+                  <TableCell className="text-right">{result.student.email}</TableCell>
+                  <TableCell className="text-right">
                     {result.obtainedScore} / {result.totalScore}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Badge variant="outline" className={getGradeColor(result.percentage)}>
                       {result.percentage.toFixed(1)}%
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Badge variant={result.percentage >= 50 ? 'default' : 'destructive'}>
-                      {result.percentage >= 50 ? 'ناجح' : 'راسب'}
+                      {getGradeText(result.percentage)}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
+                  <TableCell className="text-right">
+                    <div className="flex items-center gap-2 justify-end">
                       <Calendar className="h-4 w-4 text-gray-500" />
                       {new Date(result.submittedAt).toLocaleDateString('ar-EG')}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 ml-2" />
                       التفاصيل
@@ -257,6 +284,36 @@ export default function ExamResultsTeacher({ examId }: { examId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Question Statistics */}
+      {statistics?.questionStats && statistics.questionStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>إحصائيات الأسئلة</CardTitle>
+            <CardDescription>أداء الطلاب في كل سؤال</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {statistics.questionStats.map((questionStat, index) => (
+                <div key={questionStat.questionId} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">
+                      سؤال {index + 1}: {questionStat.questionText}
+                    </p>
+                    <div className="flex gap-4 mt-1 text-xs text-gray-600">
+                      <span>الإجابات الصحيحة: {questionStat.correctCount}</span>
+                      <span>إجمالي المحاولات: {questionStat.totalAttempts}</span>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={questionStat.accuracy >= 70 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    دقة: {questionStat.accuracy.toFixed(1)}%
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

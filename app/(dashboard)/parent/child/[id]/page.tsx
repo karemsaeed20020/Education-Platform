@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, User, Award, Calendar, TrendingUp, BarChart3, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Child {
   _id: string;
@@ -75,60 +76,51 @@ export default function ChildDetailsPage() {
 
   const fetchChildData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/dashboard', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/dashboard');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          const childData = data.data.parent.children.find((c: Child) => c._id === childId);
-          setChild(childData);
-        }
+      if (response.data.status === 'success') {
+        const childData = response.data.data.parent.children.find((c: Child) => c._id === childId);
+        setChild(childData);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching child data:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الابن';
+      toast.error(errorMessage);
     }
   };
 
   const fetchChildResults = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/children/results', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/children/results');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          // ✅ تصفية النتائج التي تحتوي على exam و student
-          const childResults = (data.data.results || []).filter((result: ExamResult) => 
-            result.student && result.student._id === childId && result.exam // ✅ التأكد من وجود exam
-          );
-          setResults(childResults);
-        }
+      if (response.data.status === 'success') {
+        // ✅ تصفية النتائج التي تحتوي على exam و student
+        const childResults = (response.data.data.results || []).filter((result: ExamResult) => 
+          result.student && result.student._id === childId && result.exam // ✅ التأكد من وجود exam
+        );
+        setResults(childResults);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching child results:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل نتائج الابن';
+      toast.error(errorMessage);
     }
   };
 
   const fetchChildAttendance = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/children/attendance', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/children/attendance');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          const childAttendance = (data.data.attendance || []).filter((record: any) => 
-            record.student && record.student._id === childId
-          );
-          setAttendance(childAttendance);
-        }
+      if (response.data.status === 'success') {
+        const childAttendance = (response.data.data.attendance || []).filter((record: any) => 
+          record.student && record.student._id === childId
+        );
+        setAttendance(childAttendance);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching child attendance:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الحضور';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -136,35 +128,42 @@ export default function ChildDetailsPage() {
 
   const fetchChildProgress = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/parent/child/${childId}/progress?months=6`, {
-        credentials: 'include'
+      const response = await api.get(`/api/parent/child/${childId}/progress`, {
+        params: { months: 6 }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setProgress(data.data.monthlyProgress || []);
-        }
+      if (response.data.status === 'success') {
+        setProgress(response.data.data.monthlyProgress || []);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching child progress:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات التقدم';
+      toast.error(errorMessage);
     }
   };
 
   const exportReport = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/parent/child/${childId}/report/export`, {
-        credentials: 'include'
+      const response = await api.get(`/api/parent/child/${childId}/report/export`, {
+        responseType: 'blob' // Important for file downloads
       });
 
-      if (response.ok) {
-        toast.success('جاري تحميل التقرير...');
-      } else {
-        toast.error('فشل في تصدير التقرير');
+      if (response.data) {
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `تقرير-${child?.username || 'طالب'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('تم تحميل التقرير بنجاح');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error exporting report:', error);
-      toast.error('فشل في تصدير التقرير');
+      const errorMessage = error.response?.data?.message || 'فشل في تصدير التقرير';
+      toast.error(errorMessage);
     }
   };
 

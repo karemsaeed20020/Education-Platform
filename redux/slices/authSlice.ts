@@ -12,6 +12,7 @@ interface User {
   bio?: string;
   role: string;
   isVerified?: boolean;
+  lastLogin?: string;
 }
 
 interface OTPData {
@@ -23,6 +24,7 @@ interface OTPData {
 interface AuthState {
   loading: boolean;
   user: User | null;
+  token: string | null;
   error: string | null;
   otpData: OTPData | null;
 }
@@ -30,58 +32,48 @@ interface AuthState {
 const initialState: AuthState = {
   loading: false,
   user: null,
+  token: null,
   error: null,
   otpData: null,
 };
 
-// دالة مساعدة لحفظ بيانات OTP في sessionStorage
-const saveOTPToStorage = (otpData: OTPData) => {
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.setItem('otpData', JSON.stringify(otpData));
-      console.log('OTP data saved to sessionStorage:', { 
-        email: otpData.email, 
-        otp: otpData.otp.substring(0, 3) + '***',
-        mode: otpData.mode 
-      });
-    } catch (error) {
-      console.error('Error saving OTP to sessionStorage:', error);
-    }
-  }
-};
+// In your authSlice.ts - update the api instance
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  withCredentials: true, // Important for cookies
+  timeout: 10000, // Add timeout
+});
 
-// دالة مساعدة لتحميل بيانات OTP من sessionStorage
-const loadOTPFromStorage = (): OTPData | null => {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = sessionStorage.getItem('otpData');
-      if (stored) {
-        const otpData = JSON.parse(stored);
-        console.log('OTP data loaded from sessionStorage:', { 
-          email: otpData.email, 
-          otp: otpData.otp.substring(0, 3) + '***',
-          mode: otpData.mode 
-        });
-        return otpData;
+// Add this after creating the api instance in authSlice.ts
+
+// ✅ Add request interceptor to include token in all requests
+api.interceptors.request.use(
+  (config) => {
+    // Get token from localStorage (redux-persist)
+    if (typeof window !== 'undefined') {
+      try {
+        const persistedState = localStorage.getItem('persist:root');
+        if (persistedState) {
+          const parsedState = JSON.parse(persistedState);
+          const authState = JSON.parse(parsedState.auth);
+          const token = authState.token;
+          
+          if (token && token !== 'null') {
+            config.headers.Authorization = `Bearer ${token}`;
+            console.log('🔐 Token added to request:', config.url);
+          }
+        }
+      } catch (error) {
+        console.log('❌ Error reading token from storage');
       }
-    } catch (error) {
-      console.error('Error loading OTP from sessionStorage:', error);
     }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return null;
-};
-
-// دالة مساعدة لمسح بيانات OTP من sessionStorage
-const clearOTPFromStorage = () => {
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.removeItem('otpData');
-      console.log('OTP data cleared from sessionStorage');
-    } catch (error) {
-      console.error('Error clearing OTP from sessionStorage:', error);
-    }
-  }
-};
+);
 
 // ✅ Register with email verification
 export const registerUser = createAsyncThunk(
@@ -100,21 +92,17 @@ export const registerUser = createAsyncThunk(
       password: string;
       confirmPassword: string;
     },
-    { rejectWithValue , dispatch}
+    { rejectWithValue }
   ) => {
     try {
       console.log('📧 Registering new student:', { username, email });
       
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`,
-        { username, email, phone, password, confirmPassword },
-        { withCredentials: true }
+      const res = await api.post(
+        '/api/auth/register',
+        { username, email, phone, password, confirmPassword }
       );
       
       toast.success("تم إنشاء حساب الطالب بنجاح! ✅");
-      
-      // Auto-login after successful registration
-      // await dispatch(loginUser({ email, password })).unwrap();
       
       return res.data;
     } catch (err: any) {
@@ -123,10 +111,9 @@ export const registerUser = createAsyncThunk(
       return rejectWithValue(message);
     }
   }
-  
 );
 
-// ✅ Login
+// ✅ Login User - UPDATED to auto-load profile
 export const loginUser = createAsyncThunk(
   "auth/login",
   async (
@@ -134,19 +121,35 @@ export const loginUser = createAsyncThunk(
     { rejectWithValue, dispatch }
   ) => {
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
-        { email, password },
-        { withCredentials: true }
-      );
+      console.log('🔐 Attempting login for:', email);
       
+      const res = await api.post('/api/auth/login', { 
+        email, 
+        password 
+      });
+
+      console.log('✅ Login response:', {
+        hasToken: !!res.data.token,
+        tokenPreview: res.data.token ? res.data.token.substring(0, 20) + '...' : 'No token'
+      });
+
       toast.success("تم تسجيل الدخول ✅");
-      
-      // Fetch full profile to populate Redux
-      await dispatch(getProfile());
-      
-      return res.data;
+
+      // ✅ Auto-load profile after login
+      if (res.data.token) {
+        console.log('🔐 Auto-loading profile after login...');
+        // Small delay to ensure token is stored
+        setTimeout(() => {
+          dispatch(getProfile());
+        }, 500);
+      }
+
+      return {
+        token: res.data.token,
+        user: res.data.data?.user
+      };
     } catch (err: any) {
+      console.error('❌ Login error:', err.response?.data);
       const message = err.response?.data?.message || "فشل تسجيل الدخول";
       toast.error(message);
       return rejectWithValue(message);
@@ -154,16 +157,12 @@ export const loginUser = createAsyncThunk(
   }
 );
 
-// ✅ Logout
+// ✅ Logout - Clears token from Redux
 export const logoutUser = createAsyncThunk(
   "auth/logoutUser",
   async (_, { rejectWithValue }) => {
     try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`,
-        {},
-        { withCredentials: true }
-      );
+      await api.post('/api/auth/logout');
       toast.success("تم تسجيل الخروج 👋");
       return true;
     } catch (error: any) {
@@ -174,18 +173,43 @@ export const logoutUser = createAsyncThunk(
   }
 );
 
-// ✅ Get Profile
+// In your authSlice.ts - update getProfile and other protected calls
+// ✅ Get User Profile - FIXED with manual fetch
 export const getProfile = createAsyncThunk(
   "auth/getProfile",
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
-      const res = await axios.get(
+      // Get token from Redux state
+      const state = getState() as any;
+      const token = state.auth.token;
+      
+      console.log('🔐 Profile request - Token:', token ? 'Present' : 'Missing');
+
+      if (!token) {
+        throw new Error('No token available');
+      }
+
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/users/profile`,
-        { withCredentials: true }
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        }
       );
-      return res.data.data.user;
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.data.user;
+      
     } catch (err: any) {
-      const message = err.response?.data?.message || "فشل تحميل الملف الشخصي";
+      const message = err.response?.data?.message || err.message || "فشل تحميل الملف الشخصي";
       return rejectWithValue(message);
     }
   }
@@ -196,11 +220,10 @@ export const updateProfile = createAsyncThunk(
   "auth/updateProfile",
   async (formData: FormData, { rejectWithValue }) => {
     try {
-      const res = await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/users/profile`,
+      const res = await api.patch(
+        '/api/users/profile',
         formData,
         {
-          withCredentials: true,
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
@@ -227,11 +250,7 @@ export const sendVerificationOTP = createAsyncThunk(
   "auth/sendVerificationOTP",
   async (email: string, { rejectWithValue }) => {
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/send-otp`,
-        { email },
-        { withCredentials: true }
-      );
+      const res = await api.post('/api/auth/send-otp', { email });
       toast.success("تم إرسال رمز التحقق إلى بريدك الإلكتروني 📩");
       return res.data;
     } catch (err: any) {
@@ -252,11 +271,7 @@ export const verifyOTP = createAsyncThunk(
     try {
       console.log('Verifying OTP:', { email, otp });
       
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/verify-otp`,
-        { email, otp },
-        { withCredentials: true }
-      );
+      const res = await api.post('/api/auth/verify-otp', { email, otp });
       
       toast.success("تم التحقق بنجاح ✅");
       return res.data;
@@ -282,10 +297,9 @@ export const resetPassword = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const res = await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/reset-password`,
-        { email, currentPassword, newPassword, confirmPassword },
-        { withCredentials: true }
+      const res = await api.patch(
+        '/api/auth/reset-password',
+        { email, currentPassword, newPassword, confirmPassword }
       );
       toast.success("تم تغيير كلمة المرور بنجاح! ✅");
       return res.data;
@@ -297,7 +311,7 @@ export const resetPassword = createAsyncThunk(
   }
 );
 
-// ✅ Reset password AFTER OTP (forgot password flow)
+// ✅ Reset password AFTER OTP
 export const resetPasswordAfterOTP = createAsyncThunk(
   "auth/resetPasswordAfterOTP",
   async (
@@ -316,10 +330,9 @@ export const resetPasswordAfterOTP = createAsyncThunk(
         passwordLength: newPassword.length 
       });
       
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/reset-password-after-otp`,
-        { email, otp, newPassword, confirmPassword },
-        { withCredentials: true }
+      const res = await api.post(
+        '/api/auth/reset-password-after-otp',
+        { email, otp, newPassword, confirmPassword }
       );
       
       toast.success("تم تغيير كلمة المرور بنجاح! ✅");
@@ -336,33 +349,22 @@ export const resetPasswordAfterOTP = createAsyncThunk(
 // Slice
 const authSlice = createSlice({
   name: "auth",
-  initialState: {
-    ...initialState,
-    // تحميل البيانات من sessionStorage عند التهيئة
-    otpData: loadOTPFromStorage()
-  },
+  initialState,
   reducers: {
     setUser: (state, action) => {
       state.user = action.payload;
     },
+    setToken: (state, action: PayloadAction<string>) => {
+      state.token = action.payload;
+    },
     clearAuth: (state) => {
       state.user = null;
+      state.token = null;
       state.error = null;
       state.otpData = null;
-      clearOTPFromStorage();
     },
     clearError: (state) => {
       state.error = null;
-    },
-    // حفظ بيانات OTP في Redux و sessionStorage
-    setOTPData: (state, action: PayloadAction<OTPData>) => {
-      state.otpData = action.payload;
-      saveOTPToStorage(action.payload);
-    },
-    // مسح بيانات OTP من Redux و sessionStorage
-    clearOTPData: (state) => {
-      state.otpData = null;
-      clearOTPFromStorage();
     },
   },
   extraReducers: (builder) => {
@@ -372,9 +374,8 @@ const authSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(registerUser.fulfilled, (state, action) => {
+      .addCase(registerUser.fulfilled, (state) => {
         state.loading = false;
-        // state.user = action.payload?.data?.user || action.payload?.user || null;
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
@@ -388,12 +389,13 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
-        // Handle both response structures
-        state.user = action.payload?.data?.user || action.payload?.user || action.payload;
+        state.token = action.payload.token;
+        state.user = action.payload.user || action.payload.user;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+        state.token = null;
       })
 
       // 🔹 Get Profile
@@ -408,7 +410,6 @@ const authSlice = createSlice({
       .addCase(getProfile.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
-        state.user = null;
       })
 
       // 🔹 Update Profile
@@ -432,9 +433,8 @@ const authSlice = createSlice({
       .addCase(logoutUser.fulfilled, (state) => {
         state.loading = false;
         state.user = null;
+        state.token = null;
         state.error = null;
-        state.otpData = null;
-        clearOTPFromStorage();
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;
@@ -487,8 +487,6 @@ const authSlice = createSlice({
       })
       .addCase(resetPasswordAfterOTP.fulfilled, (state) => {
         state.loading = false;
-        state.otpData = null;
-        clearOTPFromStorage();
       })
       .addCase(resetPasswordAfterOTP.rejected, (state, action) => {
         state.loading = false;
@@ -496,6 +494,7 @@ const authSlice = createSlice({
       });
   },
 });
+export { api };
 
-export const { setUser, clearAuth, clearError, setOTPData, clearOTPData } = authSlice.actions;
+export const { setUser, setToken, clearAuth, clearError } = authSlice.actions;
 export default authSlice.reducer;

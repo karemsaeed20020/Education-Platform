@@ -25,6 +25,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Student } from '@/types';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface StudentDetailsModalProps {
   isOpen: boolean;
@@ -49,19 +50,17 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
       
       setLoading(true);
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/users/students/${student._id}`,
-          {
-            credentials: 'include',
-          }
-        );
+        const response = await api.get(`/api/users/students/${student._id}`);
         
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message);
-        
-        setStudentDetails(data.data.student);
+        if (response.data.status === 'success') {
+          setStudentDetails(response.data.data.student);
+        } else {
+          throw new Error(response.data.message || 'فشل في تحميل بيانات الطالب');
+        }
       } catch (err: any) {
         console.error('Error fetching student details:', err);
+        const errorMessage = err.response?.data?.message || err.message || 'فشل في تحميل بيانات الطالب';
+        // Note: We're not showing toast here to avoid interrupting the user experience
       } finally {
         setLoading(false);
       }
@@ -81,6 +80,12 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    if (!loading) {
+      onClose();
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ar-EG', {
       year: 'numeric',
@@ -92,7 +97,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
   if (!isOpen || !student) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[75vh] rounded-2xl bg-white overflow-hidden flex flex-col">
         <DialogHeader className="border-b border-gray-200 pb-4 flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -113,6 +118,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
               variant="outline"
               size="sm"
               onClick={handleEdit}
+              disabled={loading || !studentDetails}
               className="flex items-center gap-2 h-9"
             >
               <Edit className="w-3 h-3" />
@@ -197,7 +203,6 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
                 </CardContent>
               </Card>
 
-
               {/* Additional Information */}
               <div className="space-y-3">
                 <h4 className="font-semibold text-gray-900 text-sm">معلومات إضافية</h4>
@@ -272,9 +277,10 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
 
         <div className="border-t border-gray-200 pt-3 flex-shrink-0">
           <Button
-            onClick={onClose}
+            onClick={handleClose}
             variant="outline"
             className="w-full h-9 text-sm"
+            disabled={loading}
           >
             إغلاق
           </Button>

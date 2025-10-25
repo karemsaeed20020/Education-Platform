@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Filter, Download, Eye, Calendar, Award, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface ExamResult {
   _id: string;
@@ -48,21 +49,17 @@ export default function ParentResultsPage() {
 
   const fetchResults = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/children/results', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/children/results');
 
-      if (!response.ok) {
+      if (response.data.status === 'success') {
+        setResults(response.data.data.results || []); // ✅ التأكد من أن results ليست undefined
+      } else {
         throw new Error('فشل في جلب النتائج');
       }
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        setResults(data.data.results || []); // ✅ التأكد من أن results ليست undefined
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching results:', error);
-      toast.error('فشل في تحميل النتائج');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل النتائج';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -70,18 +67,15 @@ export default function ParentResultsPage() {
 
   const fetchChildren = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/dashboard', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/dashboard');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setChildren(data.data.parent.children || []); // ✅ التأكد من أن children ليست undefined
-        }
+      if (response.data.status === 'success') {
+        setChildren(response.data.data.parent.children || []); // ✅ التأكد من أن children ليست undefined
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching children:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الأبناء';
+      toast.error(errorMessage);
     }
   };
 
@@ -146,56 +140,56 @@ export default function ParentResultsPage() {
     return result.exam?.totalMarks || result.obtainedScore;
   };
 
-//   const exportToPDF = async (childId?: string) => {
-//   try {
-//     let url = 'http://localhost:5000/api/parent/children/results/export';
-//     let params = new URLSearchParams();
-    
-//     if (childId) {
-//       params.append('childId', childId);
-//     }
-    
-//     // إضافة الفلاتر إذا كانت موجودة
-//     if (searchTerm) params.append('search', searchTerm);
-//     if (childFilter !== 'all') params.append('childFilter', childFilter);
-//     if (subjectFilter !== 'all') params.append('subjectFilter', subjectFilter);
-//     if (typeFilter !== 'all') params.append('typeFilter', typeFilter);
+  // const exportToPDF = async (childId?: string) => {
+  //   try {
+  //     let url = '/api/parent/children/results/export';
+  //     const params: any = {};
+      
+  //     if (childId) {
+  //       params.childId = childId;
+  //     }
+      
+  //     // إضافة الفلاتر إذا كانت موجودة
+  //     if (searchTerm) params.search = searchTerm;
+  //     if (childFilter !== 'all') params.childFilter = childFilter;
+  //     if (subjectFilter !== 'all') params.subjectFilter = subjectFilter;
+  //     if (typeFilter !== 'all') params.typeFilter = typeFilter;
 
-//     const response = await fetch(`${url}?${params}`, {
-//       credentials: 'include'
-//     });
+  //     const response = await api.get(url, {
+  //       params: params,
+  //       responseType: 'blob' // Important for file downloads
+  //     });
 
-//     if (response.ok) {
-//       const blob = await response.blob();
-      
-//       // إنشاء رابط تحميل
-//       const downloadUrl = window.URL.createObjectURL(blob);
-//       const a = document.createElement('a');
-//       a.href = downloadUrl;
-      
-//       // تسمية الملف بناءً على نوع التقرير
-//       const filename = childId 
-//         ? `تقرير-${children.find(c => c._id === childId)?.username || 'طالب'}.pdf`
-//         : `تقرير-جميع-الابناء.pdf`;
-      
-//       a.download = filename;
-//       document.body.appendChild(a);
-//       a.click();
-      
-//       // التنظيف
-//       window.URL.revokeObjectURL(downloadUrl);
-//       document.body.removeChild(a);
-      
-//       toast.success('تم تحميل التقرير بنجاح');
-//     } else {
-//       const errorData = await response.json();
-//       toast.error(errorData.message || 'فشل في تصدير التقرير');
-//     }
-//   } catch (error) {
-//     console.error('Error exporting PDF:', error);
-//     toast.error('فشل في اتصال الخادم');
-//   }
-// };
+  //     if (response.data) {
+  //       const blob = new Blob([response.data], { type: 'application/pdf' });
+        
+  //       // إنشاء رابط تحميل
+  //       const downloadUrl = window.URL.createObjectURL(blob);
+  //       const a = document.createElement('a');
+  //       a.href = downloadUrl;
+        
+  //       // تسمية الملف بناءً على نوع التقرير
+  //       const filename = childId 
+  //         ? `تقرير-${children.find(c => c._id === childId)?.username || 'طالب'}.pdf`
+  //         : `تقرير-جميع-الابناء.pdf`;
+        
+  //       a.download = filename;
+  //       document.body.appendChild(a);
+  //       a.click();
+        
+  //       // التنظيف
+  //       window.URL.revokeObjectURL(downloadUrl);
+  //       document.body.removeChild(a);
+        
+  //       toast.success('تم تحميل التقرير بنجاح');
+  //     }
+  //   } catch (error: any) {
+  //     console.error('Error exporting PDF:', error);
+  //     const errorMessage = error.response?.data?.message || 'فشل في تصدير التقرير';
+  //     toast.error(errorMessage);
+  //   }
+  // };
+
   const filteredResults = results.filter(result => {
     // ✅ تحقق آمن من وجود exam و student
     if (!result.student || !result.exam) {

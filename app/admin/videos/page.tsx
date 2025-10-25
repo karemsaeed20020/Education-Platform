@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Eye, Play, Edit, Trash2, Plus, Filter, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Video {
   _id: string;
@@ -39,55 +41,44 @@ export default function AdminVideosPage() {
     chapter: 'الكل'
   });
 
-  // Fetch videos function
+  // Fetch videos function using api
   const fetchVideos = async () => {
     try {
       setRefreshing(true);
-      const params = new URLSearchParams();
       
+      // Build query parameters
+      const params: any = {};
       if (filters.grade && filters.grade !== 'الكل') {
-        params.append('grade', filters.grade);
+        params.grade = filters.grade;
       }
       if (filters.chapter && filters.chapter !== 'الكل') {
-        params.append('chapter', filters.chapter);
+        params.chapter = filters.chapter;
       }
 
-      console.log('🔄 Fetching videos with params:', params.toString());
+      console.log('🔄 Fetching videos with params:', params);
 
-      const response = await fetch(`http://localhost:5000/api/videos?${params}`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      const response = await api.get('/api/videos', { params });
       
       console.log('📊 Response status:', response.status);
+      console.log('✅ Videos data received:', response.data);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Videos data received:', data);
-        
-        if (data.status === 'success') {
-          setVideos(data.data.videos || []);
-          toast.success(`تم تحميل ${data.data.videos?.length || 0} فيديو`);
-        } else {
-          console.error('❌ API error:', data);
-          toast.error(data.message || 'فشل في تحميل الفيديوهات');
-        }
+      if (response.data.status === 'success') {
+        setVideos(response.data.data.videos || []);
+        toast.success(`تم تحميل ${response.data.data.videos?.length || 0} فيديو`);
       } else {
-        const errorText = await response.text();
-        console.error('❌ HTTP error:', response.status, errorText);
-        
-        if (response.status === 401) {
-          toast.error('غير مصرح. يرجى تسجيل الدخول');
-          window.location.href = '/login';
-        } else {
-          toast.error('فشل في تحميل الفيديوهات');
-        }
+        console.error('❌ API error:', response.data);
+        toast.error(response.data.message || 'فشل في تحميل الفيديوهات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('🚨 Network error:', error);
-      toast.error('خطأ في الشبكة. تأكد من اتصال السيرفر');
+      
+      if (error.response?.status === 401) {
+        toast.error('غير مصرح. يرجى تسجيل الدخول');
+        window.location.href = '/login';
+      } else {
+        const message = error.response?.data?.message || 'خطأ في الشبكة. تأكد من اتصال السيرفر';
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -110,21 +101,18 @@ export default function AdminVideosPage() {
     if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/videos/${videoId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      const response = await api.delete(`/api/videos/${videoId}`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         toast.success('تم حذف الفيديو بنجاح');
         fetchVideos(); // Reload the list
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message || 'فشل في حذف الفيديو');
+        toast.error(response.data.message || 'فشل في حذف الفيديو');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting video:', error);
-      toast.error('فشل في حذف الفيديو');
+      const message = error.response?.data?.message || 'فشل في حذف الفيديو';
+      toast.error(message);
     }
   };
 

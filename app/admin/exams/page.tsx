@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Search, FileText, Edit, Trash2, Eye, Clock, Award, Copy, X, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Question {
   _id?: string;
@@ -40,6 +41,41 @@ interface Exam {
     username: string;
   };
 }
+
+// 🔹 دوال API للاختبارات باستخدام axios
+const examsApi = {
+  // جلب الاختبارات
+  getExams: async () => {
+    const response = await api.get('/api/exams/teacher');
+    return response.data;
+  },
+
+  // إنشاء اختبار جديد
+  createExam: async (examData: any) => {
+    const response = await api.post('/api/exams', examData);
+    return response.data;
+  },
+
+  // تحديث أسئلة الاختبار
+  updateExam: async (examId: string, updateData: any) => {
+    const response = await api.put(`/api/exams/${examId}`, updateData);
+    return response.data;
+  },
+
+  // حذف اختبار
+  deleteExam: async (examId: string) => {
+    const response = await api.delete(`/api/exams/${examId}`);
+    return response.data;
+  },
+
+  // نشر/إلغاء نشر الاختبار
+  publishExam: async (examId: string, publish: boolean) => {
+    const response = await api.put(`/api/exams/${examId}`, {
+      isPublished: publish.toString()
+    });
+    return response.data;
+  }
+};
 
 export default function ExamsPage() {
   const [exams, setExams] = useState<Exam[]>([]);
@@ -81,21 +117,17 @@ export default function ExamsPage() {
   const fetchExams = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/exams/teacher', {
-        credentials: 'include'
-      });
       
-      if (!response.ok) {
-        throw new Error('فشل في جلب البيانات');
-      }
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await examsApi.getExams();
       
-      const data = await response.json();
       if (data.status === 'success') {
         setExams(data.data.exams);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching exams:', error);
-      toast.error('فشل في تحميل الاختبارات');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الاختبارات';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -115,30 +147,21 @@ export default function ExamsPage() {
         questions: currentQuestions
       };
 
-      const response = await fetch('http://localhost:5000/api/exams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(examData)
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await examsApi.createExam(examData);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في إنشاء الاختبار');
-      }
-
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم إنشاء الاختبار بنجاح');
         setIsCreateDialogOpen(false);
         resetForm();
         fetchExams();
+      } else {
+        throw new Error(data.message || 'فشل في إنشاء الاختبار');
       }
     } catch (error: any) {
       console.error('Error creating exam:', error);
-      toast.error(error.message || 'فشل في إنشاء الاختبار');
+      const errorMessage = error.response?.data?.message || 'فشل في إنشاء الاختبار';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -147,31 +170,22 @@ export default function ExamsPage() {
   const updateExamQuestions = async (examId: string) => {
     setSaving(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          questions: currentQuestions
-        })
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await examsApi.updateExam(examId, {
+        questions: currentQuestions
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في تحديث الأسئلة');
-      }
-
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم تحديث أسئلة الاختبار بنجاح');
         setIsQuestionsDialogOpen(false);
         fetchExams();
+      } else {
+        throw new Error(data.message || 'فشل في تحديث الأسئلة');
       }
     } catch (error: any) {
       console.error('Error updating exam questions:', error);
-      toast.error(error.message || 'فشل في تحديث الأسئلة');
+      const errorMessage = error.response?.data?.message || 'فشل في تحديث الأسئلة';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -179,30 +193,19 @@ export default function ExamsPage() {
 
   const publishExam = async (examId: string, publish: boolean) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${examId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          isPublished: publish.toString()
-        })
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await examsApi.publishExam(examId, publish);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في تحديث حالة النشر');
-      }
-
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success(publish ? 'تم نشر الاختبار بنجاح' : 'تم إلغاء نشر الاختبار');
         fetchExams();
+      } else {
+        throw new Error(data.message || 'فشل في تحديث حالة النشر');
       }
     } catch (error: any) {
       console.error('Error publishing exam:', error);
-      toast.error(error.message || 'فشل في تحديث حالة النشر');
+      const errorMessage = error.response?.data?.message || 'فشل في تحديث حالة النشر';
+      toast.error(errorMessage);
     }
   };
 
@@ -254,24 +257,19 @@ export default function ExamsPage() {
     if (!confirm('هل أنت متأكد من حذف هذا الاختبار؟')) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/exams/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await examsApi.deleteExam(id);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في حذف الاختبار');
-      }
-
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم حذف الاختبار بنجاح');
         fetchExams();
+      } else {
+        throw new Error(data.message || 'فشل في حذف الاختبار');
       }
     } catch (error: any) {
       console.error('Error deleting exam:', error);
-      toast.error(error.message || 'فشل في حذف الاختبار');
+      const errorMessage = error.response?.data?.message || 'فشل في حذف الاختبار';
+      toast.error(errorMessage);
     }
   };
 
@@ -321,23 +319,23 @@ export default function ExamsPage() {
   };
 
   const getCategoryBadge = (category: string) => {
-  const categoryConfig = {
-    'نحو': { label: 'نحو', className: 'bg-blue-100 text-blue-800 border-blue-200' },
-    'صرف': { label: 'صرف', className: 'bg-green-100 text-green-800 border-green-200' },
-    'بلاغة': { label: 'بلاغة', className: 'bg-purple-100 text-purple-800 border-purple-200' },
-    'أدب': { label: 'أدب', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-    'نصوص': { label: 'نصوص', className: 'bg-red-100 text-red-800 border-red-200' },
-    'إملاء': { label: 'إملاء', className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-    'اختبار_شامل': { label: 'شامل', className: 'bg-gray-100 text-gray-800 border-gray-200' }
+    const categoryConfig = {
+      'نحو': { label: 'نحو', className: 'bg-blue-100 text-blue-800 border-blue-200' },
+      'صرف': { label: 'صرف', className: 'bg-green-100 text-green-800 border-green-200' },
+      'بلاغة': { label: 'بلاغة', className: 'bg-purple-100 text-purple-800 border-purple-200' },
+      'أدب': { label: 'أدب', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      'نصوص': { label: 'نصوص', className: 'bg-red-100 text-red-800 border-red-200' },
+      'إملاء': { label: 'إملاء', className: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+      'اختبار_شامل': { label: 'شامل', className: 'bg-gray-100 text-gray-800 border-gray-200' }
+    };
+    
+    const config = categoryConfig[category as keyof typeof categoryConfig];
+    return (
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+    );
   };
-  
-  const config = categoryConfig[category as keyof typeof categoryConfig];
-  return (
-    <Badge variant="outline" className={config.className}>
-      {config.label}
-    </Badge>
-  );
-};
 
   const filteredExams = exams.filter(exam => {
     const matchesSearch = exam.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

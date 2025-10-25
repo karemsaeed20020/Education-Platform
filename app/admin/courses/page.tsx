@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/admin/courses/page.tsx
 'use client';
 
@@ -11,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Edit, Eye, Trash2, Plus, Play, Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Course {
   _id: string;
@@ -33,6 +35,27 @@ interface Course {
   createdAt: string;
 }
 
+// 🔹 دوال API للكورسات باستخدام axios
+const coursesApi = {
+  // جلب كورسات المدرب
+  getInstructorCourses: async () => {
+    const response = await api.get('/api/courses/instructor/my-courses');
+    return response.data;
+  },
+
+  // حذف كورس
+  deleteCourse: async (courseId: string) => {
+    const response = await api.delete(`/api/courses/${courseId}`);
+    return response.data;
+  },
+
+  // نشر كورس
+  publishCourse: async (courseId: string) => {
+    const response = await api.patch(`/api/courses/${courseId}/publish`);
+    return response.data;
+  }
+};
+
 export default function AdminCoursesPage() {
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -44,19 +67,16 @@ export default function AdminCoursesPage() {
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/courses/instructor/my-courses', {
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await coursesApi.getInstructorCourses();
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setCourses(data.data.courses || []);
-        }
+      if (data.status === 'success') {
+        setCourses(data.data.courses || []);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching courses:', error);
-      toast.error('فشل في تحميل الكورسات');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الكورسات';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -66,39 +86,37 @@ export default function AdminCoursesPage() {
     if (!confirm('هل أنت متأكد من حذف هذا الكورس؟')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/courses/${courseId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await coursesApi.deleteCourse(courseId);
 
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم حذف الكورس بنجاح');
         fetchCourses(); // Refresh the list
       } else {
-        toast.error('فشل في حذف الكورس');
+        throw new Error(data.message || 'فشل في حذف الكورس');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting course:', error);
-      toast.error('فشل في حذف الكورس');
+      const errorMessage = error.response?.data?.message || 'فشل في حذف الكورس';
+      toast.error(errorMessage);
     }
   };
 
   const publishCourse = async (courseId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/courses/${courseId}/publish`, {
-        method: 'PATCH',
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await coursesApi.publishCourse(courseId);
 
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم نشر الكورس بنجاح');
         fetchCourses(); // Refresh the list
       } else {
-        toast.error('فشل في نشر الكورس');
+        throw new Error(data.message || 'فشل في نشر الكورس');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error publishing course:', error);
-      toast.error('فشل في نشر الكورس');
+      const errorMessage = error.response?.data?.message || 'فشل في نشر الكورس';
+      toast.error(errorMessage);
     }
   };
 

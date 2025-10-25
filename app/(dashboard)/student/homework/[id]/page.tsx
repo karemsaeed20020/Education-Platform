@@ -9,6 +9,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
+import { api } from '@/redux/slices/authSlice';
 
 interface Homework {
   _id: string;
@@ -46,10 +47,9 @@ export default function HomeworkDetailsPage() {
   const fetchHomeworkDetails = async (id: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5000/api/homework/${id}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
+      const response = await api.get(`/api/homework/${id}`);
+      const data = response.data;
+      
       if (data.status === 'success') {
         setHomework(data.data.homework);
       } else {
@@ -65,13 +65,42 @@ export default function HomeworkDetailsPage() {
     }
   };
 
-  const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
+  const downloadFile = async (homeworkId: string, fileIndex: number, fileName: string) => {
     try {
-      // افتح الرابط مباشرة - سيتم التحميل تلقائياً
-      window.open(
-        `http://localhost:5000/api/homework/${homeworkId}/download/${fileIndex}`,
-        '_blank'
+      // Use api instance for download
+      const response = await api.get(
+        `/api/homework/${homeworkId}/download/${fileIndex}`,
+        {
+          responseType: 'blob', // Important for file downloads
+        }
       );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('تم تحميل الملف بنجاح');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('حدث خطأ أثناء تحميل الملف');
+    }
+  };
+
+  // Alternative download method that opens in new tab (similar to your original approach)
+  const downloadFileAlternative = (homeworkId: string, fileIndex: number, fileName: string) => {
+    try {
+      // Get the full URL from the api instance
+      const downloadUrl = `${api.defaults.baseURL}/api/homework/${homeworkId}/download/${fileIndex}`;
+      window.open(downloadUrl, '_blank');
       toast.success('تم بدء التحميل');
     } catch (error) {
       console.error('Download error:', error);
@@ -155,6 +184,8 @@ export default function HomeworkDetailsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => downloadFile(homework._id, index, file.originalName)}
+                        // Or use the alternative method:
+                        // onClick={() => downloadFileAlternative(homework._id, index, file.originalName)}
                       >
                         <Download className="h-3 w-3 ml-1" />
                         تحميل

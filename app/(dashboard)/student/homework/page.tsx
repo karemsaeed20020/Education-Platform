@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Homework {
   _id: string;
@@ -52,16 +54,18 @@ export default function StudentHomeworkPage() {
   const fetchStudentHomeworks = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/homework/student', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.status === 'success') {
-        setHomeworks(data.data.homeworks);
+      const response = await api.get('/api/homework/student');
+      
+      if (response.data.status === 'success') {
+        setHomeworks(response.data.data.homeworks);
+        toast.success(`تم تحميل ${response.data.data.homeworks.length} واجب`);
+      } else {
+        toast.error('فشل في تحميل الواجبات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching homeworks:', error);
-      toast.error('حدث خطأ في تحميل الواجبات');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الواجبات';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -78,6 +82,31 @@ export default function StudentHomeworkPage() {
     } catch (error) {
       console.error('Download error:', error);
       toast.error('حدث خطأ أثناء تحميل الملف');
+    }
+  };
+
+  // Alternative download using api
+  const downloadFileWithApi = async (homeworkId: string, fileIndex: number, fileName: string) => {
+    try {
+      const response = await api.get(`/api/homework/${homeworkId}/download/${fileIndex}`, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('تم تحميل الملف بنجاح');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء تحميل الملف';
+      toast.error(message);
     }
   };
 
@@ -235,7 +264,10 @@ export default function StudentHomeworkPage() {
             </table>
             {filteredHomeworks.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                لا توجد واجبات نشطة حالياً
+                {homeworks.length === 0 
+                  ? 'لا توجد واجبات نشطة حالياً' 
+                  : 'لم يتم العثور على واجبات تطابق معايير البحث'
+                }
               </div>
             )}
           </div>

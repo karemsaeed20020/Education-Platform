@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FileText, Users, Award, Clock, Eye, Download, Search, User, Calendar, Mail, UserCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import { api } from '@/redux/slices/authSlice';
 
 interface Exam {
   _id: string;
@@ -63,6 +64,27 @@ interface Statistics {
   };
 }
 
+// 🔹 دوال API للدرجات باستخدام axios
+const gradesApi = {
+  // جلب الاختبارات
+  getExams: async () => {
+    const response = await api.get('/api/exams/teacher');
+    return response.data;
+  },
+
+  // جلب جميع النتائج
+  getAllResults: async () => {
+    const response = await api.get('/api/exams/results/all');
+    return response.data;
+  },
+
+  // جلب نتائج اختبار محدد
+  getExamResults: async (examId: string) => {
+    const response = await api.get(`/api/exams/${examId}/results`);
+    return response.data;
+  }
+};
+
 export default function GradesPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [results, setResults] = useState<ExamResult[]>([]);
@@ -80,43 +102,35 @@ export default function GradesPage() {
 
   const fetchExams = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/exams/teacher', {
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await gradesApi.getExams();
       
-      if (!response.ok) {
-        throw new Error('فشل في جلب الاختبارات');
-      }
-      
-      const data = await response.json();
       if (data.status === 'success') {
         setExams(data.data.exams);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching exams:', error);
-      toast.error('فشل في تحميل الاختبارات');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الاختبارات';
+      toast.error(errorMessage);
     }
   };
 
   const fetchAllResults = async () => {
     try {
-      // This would need a new endpoint that returns all results for teacher's exams
-      const response = await fetch('http://localhost:5000/api/exams/results/all', {
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await gradesApi.getAllResults();
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setResults(data.data.results);
-          calculateStatistics(data.data.results);
-        }
+      if (data.status === 'success') {
+        setResults(data.data.results);
+        calculateStatistics(data.data.results);
       } else {
         // Fallback: fetch results for each exam individually
         await fetchResultsForAllExams();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching results:', error);
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل النتائج';
+      toast.error(errorMessage);
       await fetchResultsForAllExams();
     } finally {
       setLoading(false);
@@ -128,17 +142,13 @@ export default function GradesPage() {
     
     for (const exam of exams) {
       try {
-        const response = await fetch(`http://localhost:5000/api/exams/${exam._id}/results`, {
-          credentials: 'include'
-        });
+        // ✅ استخدام axios API بدلاً من fetch
+        const data = await gradesApi.getExamResults(exam._id);
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 'success') {
-            allResults.push(...data.data.results);
-          }
+        if (data.status === 'success') {
+          allResults.push(...data.data.results);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Error fetching results for exam ${exam._id}:`, error);
       }
     }
@@ -209,34 +219,44 @@ export default function GradesPage() {
   };
 
   const exportToCSV = () => {
-    const headers = ['الطالب', 'البريد الإلكتروني', 'الاختبار', 'الدرجة المحصلة', 'الدرجة الكاملة', 'النسبة المئوية', 'التقدير', 'تاريخ التقديم', 'الوقت المستغرق'];
-    const csvData = results.map(result => [
-      result.student.username,
-      result.student.email,
-      result.exam.title,
-      result.obtainedScore.toString(),
-      result.totalScore.toString(),
-      `${result.percentage.toFixed(1)}%`,
-      getGradeText(result.percentage),
-      new Date(result.submittedAt).toLocaleDateString('ar-EG'),
-      `${Math.floor(result.timeSpent / 60)}:${(result.timeSpent % 60).toString().padStart(2, '0')}`
-    ]);
+    if (results.length === 0) {
+      toast.error('لا توجد بيانات للتصدير');
+      return;
+    }
 
-    const csvContent = [headers, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
+    try {
+      const headers = ['الطالب', 'البريد الإلكتروني', 'الاختبار', 'الدرجة المحصلة', 'الدرجة الكاملة', 'النسبة المئوية', 'التقدير', 'تاريخ التقديم', 'الوقت المستغرق'];
+      const csvData = results.map(result => [
+        result.student.username,
+        result.student.email,
+        result.exam.title,
+        result.obtainedScore.toString(),
+        result.totalScore.toString(),
+        `${result.percentage.toFixed(1)}%`,
+        getGradeText(result.percentage),
+        new Date(result.submittedAt).toLocaleDateString('ar-EG'),
+        `${Math.floor(result.timeSpent / 60)}:${(result.timeSpent % 60).toString().padStart(2, '0')}`
+      ]);
 
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `جميع_النتائج_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success('تم تصدير النتائج بنجاح');
+      const csvContent = [headers, ...csvData]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `جميع_النتائج_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('تم تصدير النتائج بنجاح');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast.error('حدث خطأ أثناء تصدير النتائج');
+    }
   };
 
   const filteredResults = results.filter(result => {
@@ -273,7 +293,7 @@ export default function GradesPage() {
           <h1 className="text-3xl font-bold text-gray-900">إدارة الدرجات</h1>
           <p className="text-gray-600 mt-2">عرض جميع نتائج الطلاب في الاختبارات</p>
         </div>
-        <Button onClick={exportToCSV}>
+        <Button onClick={exportToCSV} disabled={results.length === 0}>
           <Download className="h-4 w-4 ml-2" />
           تصدير جميع النتائج
         </Button>
@@ -485,12 +505,12 @@ export default function GradesPage() {
                       </TableCell> */}
                       <TableCell>
                         <div className="flex items-center gap-2 justify-end">
-<Link href={`/student/exams/${result.exam._id}/result`}>
-  <Button variant="outline" size="sm">
-    <Eye className="h-4 w-4 ml-2" />
-    التفاصيل
-  </Button>
-</Link>
+                          <Link href={`/student/exams/${result.exam._id}/result`}>
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 ml-2" />
+                              التفاصيل
+                            </Button>
+                          </Link>
                         </div>
                       </TableCell>
                     </TableRow>

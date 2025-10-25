@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { X, User, Mail, Phone, Lock, BookOpen, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface AddStudentModalProps {
   isOpen: boolean;
@@ -59,41 +60,41 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
       return;
     }
 
+    // Phone validation
+    const phoneRegex = /^01[0125]\d{8}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      setError('رقم الهاتف غير صحيح. يجب أن يبدأ بـ 010، 011، 012، أو 015');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/students`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
+      const response = await api.post('/api/users/students', formData);
 
-      const data = await response.json();
+      if (response.data.success) {
+        setSuccess('تم إضافة الطالب بنجاح');
+        setFormData({
+          username: '',
+          email: '',
+          phone: '',
+          password: '',
+          confirmPassword: '',
+          grade: 'غير محدد'
+        });
 
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل إضافة الطالب');
+        // Notify parent to refresh students list
+        setTimeout(() => {
+          onStudentAdded();
+          onClose();
+        }, 1500);
+      } else {
+        throw new Error(response.data.message || 'فشل إضافة الطالب');
       }
-
-      setSuccess('تم إضافة الطالب بنجاح');
-      setFormData({
-        username: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '',
-        grade: 'غير محدد'
-      });
-
-      // Notify parent to refresh students list
-      setTimeout(() => {
-        onStudentAdded();
-        onClose();
-      }, 1500);
 
     } catch (err: any) {
       console.error('❌ Add student error:', err);
-      setError(err.message || 'حدث خطأ أثناء إضافة الطالب');
+      const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء إضافة الطالب';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -180,7 +181,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 onChange={handleChange}
                 required
                 minLength={3}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 placeholder="أدخل اسم المستخدم"
               />
             </div>
@@ -200,7 +202,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 placeholder="أدخل البريد الإلكتروني"
               />
             </div>
@@ -221,7 +224,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 onChange={handleChange}
                 required
                 pattern="^01[0125]\d{8}$"
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 placeholder="مثال: 01012345678"
               />
             </div>
@@ -240,7 +244,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 name="grade"
                 value={formData.grade}
                 onChange={handleChange}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none disabled:bg-gray-50 disabled:cursor-not-allowed"
               >
                 <option value="غير محدد">غير محدد</option>
                 <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
@@ -264,7 +269,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 onChange={handleChange}
                 required
                 minLength={6}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 placeholder="أدخل كلمة المرور"
               />
             </div>
@@ -286,7 +292,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
                 onChange={handleChange}
                 required
                 minLength={6}
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
                 placeholder="أعد إدخال كلمة المرور"
               />
             </div>
@@ -298,14 +305,14 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
               type="button"
               onClick={handleClose}
               disabled={loading}
-              className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

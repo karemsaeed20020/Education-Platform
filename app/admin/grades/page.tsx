@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -48,6 +49,7 @@ import { Plus, Search, BarChart3, MoreVertical, Edit, Trash2 } from 'lucide-reac
 import { EditGradeDialog } from '@/components/edit-grade-dialog';
 import { DeleteGradeModal } from '@/components/delete-grade-modal';
 import toast, { Toaster } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface DailyGrade {
   _id: string;
@@ -74,6 +76,33 @@ interface Student {
   phone: string;
   grade: string;
 }
+
+// 🔹 دوال API لإدارة الدرجات باستخدام axios
+const gradesApi = {
+  // جلب الدرجات اليومية
+  getDailyGrades: async (grade: string, date: string) => {
+    const response = await api.get(`/api/daily-grades/class/${grade}?date=${date}`);
+    return response.data;
+  },
+
+  // جلب الطلاب
+  getStudents: async () => {
+    const response = await api.get('/api/users/students');
+    return response.data;
+  },
+
+  // إضافة درجة جديدة
+  addGrade: async (gradeData: any) => {
+    const response = await api.post('/api/daily-grades', gradeData);
+    return response.data;
+  },
+
+  // حذف درجة
+  deleteGrade: async (gradeId: string) => {
+    const response = await api.delete(`/api/daily-grades/${gradeId}`);
+    return response.data;
+  }
+};
 
 export default function GradesManagementPage() {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -110,22 +139,17 @@ export default function GradesManagementPage() {
   const fetchGrades = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `http://localhost:5000/api/daily-grades/class/${selectedGrade}?date=${selectedDate}`,
-        { credentials: 'include' }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await gradesApi.getDailyGrades(selectedGrade, selectedDate);
+      
       if (data.status === 'success') {
         setGrades(data.data.grades);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching grades:', error);
-      toast.error('حدث خطأ في تحميل التقييمات');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في تحميل التقييمات';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -133,24 +157,19 @@ export default function GradesManagementPage() {
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users/students', {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await gradesApi.getStudents();
+      
       if (data.status === 'success') {
         const filteredStudents = data.data.students.filter(
           (student: Student) => student.grade === selectedGrade
         );
         setStudents(filteredStudents);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching students:', error);
-      toast.error('حدث خطأ في تحميل قائمة الطلاب');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في تحميل قائمة الطلاب';
+      toast.error(errorMessage);
     }
   };
 
@@ -165,20 +184,8 @@ export default function GradesManagementPage() {
         date: selectedDate,
       };
 
-      const response = await fetch('http://localhost:5000/api/daily-grades', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(gradeData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
+      // ✅ استخدام axios API بدلاً من fetch
+      const result = await gradesApi.addGrade(gradeData);
 
       if (result.status === 'success') {
         toast.success('تم إضافة التقييم بنجاح');
@@ -195,9 +202,10 @@ export default function GradesManagementPage() {
         });
         fetchGrades();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding grade:', error);
-      toast.error('حدث خطأ أثناء إضافة التقييم');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ أثناء إضافة التقييم';
+      toast.error(errorMessage);
     }
   };
 
@@ -216,23 +224,17 @@ export default function GradesManagementPage() {
     
     setDeleteLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/daily-grades/${selectedGradeItem._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      await gradesApi.deleteGrade(selectedGradeItem._id);
 
-      if (response.ok) {
-        toast.success('تم حذف التقييم بنجاح');
-        setIsDeleteModalOpen(false);
-        setSelectedGradeItem(null);
-        fetchGrades();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء الحذف');
-      }
-    } catch (error) {
+      toast.success('تم حذف التقييم بنجاح');
+      setIsDeleteModalOpen(false);
+      setSelectedGradeItem(null);
+      fetchGrades();
+    } catch (error: any) {
       console.error('Error deleting grade:', error);
-      toast.error('حدث خطأ أثناء الحذف');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ أثناء الحذف';
+      toast.error(errorMessage);
     } finally {
       setDeleteLoading(false);
     }
@@ -246,17 +248,17 @@ export default function GradesManagementPage() {
   };
 
   const getTypeBadge = (type: string) => {
-  const typeConfig = {
-    تسميع: { label: 'تسميع', variant: 'default' as const },
-    اختبار: { label: 'اختبار', variant: 'secondary' as const },
-    مشاركة: { label: 'مشاركة', variant: 'outline' as const },
-    واجب: { label: 'واجب', variant: 'default' as const }, // Changed from 'success' to 'default'
-    أنشطة: { label: 'أنشطة', variant: 'destructive' as const },
-  };
+    const typeConfig = {
+      تسميع: { label: 'تسميع', variant: 'default' as const },
+      اختبار: { label: 'اختبار', variant: 'secondary' as const },
+      مشاركة: { label: 'مشاركة', variant: 'outline' as const },
+      واجب: { label: 'واجب', variant: 'default' as const },
+      أنشطة: { label: 'أنشطة', variant: 'destructive' as const },
+    };
 
-  const config = typeConfig[type as keyof typeof typeConfig];
-  return <Badge variant={config.variant}>{config.label}</Badge>;
-};
+    const config = typeConfig[type as keyof typeof typeConfig];
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-green-600 font-bold';

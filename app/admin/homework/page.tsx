@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -31,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import toast, { Toaster } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Homework {
   _id: string;
@@ -80,16 +82,28 @@ export default function HomeworkManagementPage() {
   const fetchHomeworks = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/homework/teacher', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.status === 'success') {
-        setHomeworks(data.data.homeworks);
+      console.log('🔄 Fetching homeworks...');
+      
+      const response = await api.get('/api/homework/teacher');
+      console.log('📡 Homework response:', response.data);
+      
+      if (response.data.status === 'success') {
+        setHomeworks(response.data.data.homeworks);
+        console.log('✅ Homeworks loaded successfully');
+      } else {
+        toast.error('فشل في تحميل الواجبات');
       }
-    } catch (error) {
-      console.error('Error fetching homeworks:', error);
-      toast.error('حدث خطأ في تحميل الواجبات');
+    } catch (error: any) {
+      console.error('❌ Error fetching homeworks:', error);
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الواجبات';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+        // يمكنك إضافة redirect إلى login هنا إذا أردت
+        // window.location.href = '/login';
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -98,6 +112,8 @@ export default function HomeworkManagementPage() {
   const createHomework = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      console.log('🔄 Creating homework...');
+      
       const formData = new FormData();
       formData.append('title', newHomework.title);
       formData.append('description', newHomework.description);
@@ -109,13 +125,15 @@ export default function HomeworkManagementPage() {
         formData.append('files', file);
       });
 
-      const response = await fetch('http://localhost:5000/api/homework', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
+      const response = await api.post('/api/homework', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      if (response.ok) {
+      console.log('📡 Create homework response:', response.data);
+
+      if (response.data.status === 'success') {
         toast.success('تم إنشاء الواجب بنجاح');
         setIsCreateDialogOpen(false);
         setNewHomework({ 
@@ -128,12 +146,17 @@ export default function HomeworkManagementPage() {
         setFiles([]);
         fetchHomeworks();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء إنشاء الواجب');
+        toast.error(response.data.message || 'حدث خطأ أثناء إنشاء الواجب');
       }
-    } catch (error) {
-      console.error('Error creating homework:', error);
-      toast.error('حدث خطأ أثناء إنشاء الواجب');
+    } catch (error: any) {
+      console.error('❌ Error creating homework:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء إنشاء الواجب';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     }
   };
 
@@ -152,23 +175,28 @@ export default function HomeworkManagementPage() {
     
     setDeleteLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/homework/${selectedHomework._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      console.log('🔄 Deleting homework:', selectedHomework._id);
+      
+      const response = await api.delete(`/api/homework/${selectedHomework._id}`);
+      console.log('📡 Delete response:', response.data);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         toast.success('تم حذف الواجب بنجاح');
         setIsDeleteModalOpen(false);
         setSelectedHomework(null);
         fetchHomeworks();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء الحذف');
+        toast.error(response.data.message || 'حدث خطأ أثناء الحذف');
       }
-    } catch (error) {
-      console.error('Error deleting homework:', error);
-      toast.error('حدث خطأ أثناء الحذف');
+    } catch (error: any) {
+      console.error('❌ Error deleting homework:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء الحذف';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     } finally {
       setDeleteLoading(false);
     }
@@ -176,71 +204,96 @@ export default function HomeworkManagementPage() {
 
   const publishHomework = async (homework: Homework) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/homework/${homework._id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'active'
-        })
+      console.log('🔄 Publishing homework:', homework._id);
+      
+      const response = await api.put(`/api/homework/${homework._id}`, {
+        status: 'active'
       });
 
-      if (response.ok) {
+      console.log('📡 Publish response:', response.data);
+
+      if (response.data.status === 'success') {
         toast.success('تم نشر الواجب للطلاب بنجاح');
         fetchHomeworks();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء نشر الواجب');
+        toast.error(response.data.message || 'حدث خطأ أثناء نشر الواجب');
       }
-    } catch (error) {
-      console.error('Error publishing homework:', error);
-      toast.error('حدث خطأ أثناء نشر الواجب');
+    } catch (error: any) {
+      console.error('❌ Error publishing homework:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء نشر الواجب';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     }
   };
 
   const unpublishHomework = async (homework: Homework) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/homework/${homework._id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'archived'
-        })
+      console.log('🔄 Unpublishing homework:', homework._id);
+      
+      const response = await api.put(`/api/homework/${homework._id}`, {
+        status: 'archived'
       });
 
-      if (response.ok) {
+      console.log('📡 Unpublish response:', response.data);
+
+      if (response.data.status === 'success') {
         toast.success('تم إخفاء الواجب عن الطلاب بنجاح');
         fetchHomeworks();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء إخفاء الواجب');
+        toast.error(response.data.message || 'حدث خطأ أثناء إخفاء الواجب');
       }
-    } catch (error) {
-      console.error('Error unpublishing homework:', error);
-      toast.error('حدث خطأ أثناء إخفاء الواجب');
+    } catch (error: any) {
+      console.error('❌ Error unpublishing homework:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء إخفاء الواجب';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     }
   };
 
-  // Updated download function using proxy
- // In your React component
+  // const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
+  //   try {
+  //     // استخدم api instance للتحميل أيضًا
+  //     window.open(
+  //       `${process.env.NEXT_PUBLIC_API_URL}/api/homework/${homeworkId}/download/${fileIndex}`,
+  //       '_blank'
+  //     );
+  //     toast.success('تم بدء التحميل');
+  //   } catch (error) {
+  //     console.error('Download error:', error);
+  //     toast.error('حدث خطأ أثناء تحميل الملف');
+  //   }
+  // };
+  // في HomeworkManagementPage.tsx
 const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
   try {
-    // افتح الرابط مباشرة - سيتم التحميل تلقائياً
-    window.open(
-      `http://localhost:5000/api/homework/${homeworkId}/download/${fileIndex}`,
-      '_blank'
-    );
+    // استخدم route التحميل بدون مصادقة
+    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/homework/${homeworkId}/direct-download/${fileIndex}`;
+    
+    console.log('📥 Download URL:', downloadUrl);
+    
+    // افتح في نافذة جديدة
+    const newWindow = window.open(downloadUrl, '_blank');
+    
+    if (!newWindow) {
+      toast.error('يرجى السماح بالنوافذ المنبثقة للتحميل');
+      return;
+    }
+    
     toast.success('تم بدء التحميل');
   } catch (error) {
     console.error('Download error:', error);
     toast.error('حدث خطأ أثناء تحميل الملف');
   }
 };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
@@ -278,6 +331,7 @@ const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) =
         }}
       />
       
+      {/* باقي الكود يبقى كما هو بدون تغيير */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">إدارة الواجبات</h1>
@@ -378,6 +432,7 @@ const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) =
         </Dialog>
       </div>
 
+      {/* باقي الكود يبقى كما هو */}
       {/* Filters */}
       <Card>
         <CardContent className="p-4">

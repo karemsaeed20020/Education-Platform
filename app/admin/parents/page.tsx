@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, UserPlus, Mail, Phone, Link, Search, User, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Parent {
   _id: string;
@@ -33,6 +34,45 @@ interface Student {
   email: string;
   grade: string;
 }
+
+// 🔹 دوال API لأولياء الأمور باستخدام axios
+const parentsApi = {
+  // جلب جميع أولياء الأمور
+  getParents: async () => {
+    const response = await api.get('/api/admin/parents');
+    return response.data;
+  },
+
+  // جلب الطلاب
+  getStudents: async () => {
+    const response = await api.get('/api/admin/students');
+    return response.data;
+  },
+
+  // إنشاء ولي أمر جديد
+  createParent: async (parentData: any) => {
+    const response = await api.post('/api/admin/parents', parentData);
+    return response.data;
+  },
+
+  // ربط طالب بولي الأمر
+  linkStudent: async (parentId: string, studentId: string) => {
+    const response = await api.post(`/api/admin/parents/${parentId}/link-student`, { studentId });
+    return response.data;
+  },
+
+  // فصل طالب عن ولي الأمر
+  unlinkStudent: async (parentId: string, studentId: string) => {
+    const response = await api.delete(`/api/admin/parents/${parentId}/unlink-student/${studentId}`);
+    return response.data;
+  },
+
+  // إعادة تعيين كلمة المرور
+  resetPassword: async (parentId: string) => {
+    const response = await api.post(`/api/admin/parents/${parentId}/reset-password`);
+    return response.data;
+  }
+};
 
 export default function AdminParentsPage() {
   const [parents, setParents] = useState<Parent[]>([]);
@@ -60,21 +100,18 @@ export default function AdminParentsPage() {
 
   const fetchParents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/parents', {
-        credentials: 'include'
-      });
+      setLoading(true);
+      
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.getParents();
 
-      if (!response.ok) {
-        throw new Error('فشل في جلب بيانات أولياء الأمور');
+      if (response.status === 'success') {
+        setParents(response.data.parents);
       }
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        setParents(data.data.parents);
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching parents:', error);
-      toast.error('فشل في تحميل بيانات أولياء الأمور');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات أولياء الأمور';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -82,18 +119,15 @@ export default function AdminParentsPage() {
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/students', {
-        credentials: 'include'
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.getStudents();
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setStudents(data.data.students);
-        }
+      if (response.status === 'success') {
+        setStudents(response.data.students);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching students:', error);
+      // يمكن تجاهل الخطأ هنا أو إضافة toast إذا أردت
     }
   };
 
@@ -101,25 +135,13 @@ export default function AdminParentsPage() {
     e.preventDefault();
     
     try {
-      const response = await fetch('http://localhost:5000/api/admin/parents', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          ...formData,
-          confirmPassword: formData.password // Ensure they match
-        })
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.createParent({
+        ...formData,
+        confirmPassword: formData.password
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في إنشاء حساب ولي الأمر');
-      }
-
-      if (response.ok) {
+      if (response.status === 'success') {
         toast.success(`تم إنشاء الحساب بنجاح! كلمة المرور: ${formData.password}`);
         setCreateDialogOpen(false);
         setFormData({
@@ -134,7 +156,8 @@ export default function AdminParentsPage() {
       }
     } catch (error: any) {
       console.error('Error creating parent:', error);
-      toast.error(error.message || 'فشل في إنشاء حساب ولي الأمر');
+      const errorMessage = error.response?.data?.message || 'فشل في إنشاء حساب ولي الأمر';
+      toast.error(errorMessage);
     }
   };
 
@@ -142,22 +165,10 @@ export default function AdminParentsPage() {
     if (!selectedParent) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/parents/${selectedParent._id}/link-student`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ studentId })
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.linkStudent(selectedParent._id, studentId);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في ربط الطالب');
-      }
-
-      if (response.ok) {
+      if (response.status === 'success') {
         toast.success('تم ربط الطالب بولي الأمر بنجاح');
         setLinkDialogOpen(false);
         setSelectedParent(null);
@@ -165,52 +176,39 @@ export default function AdminParentsPage() {
       }
     } catch (error: any) {
       console.error('Error linking student:', error);
-      toast.error(error.message || 'فشل في ربط الطالب');
+      const errorMessage = error.response?.data?.message || 'فشل في ربط الطالب';
+      toast.error(errorMessage);
     }
   };
 
   const handleUnlinkStudent = async (parentId: string, studentId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/parents/${parentId}/unlink-student/${studentId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.unlinkStudent(parentId, studentId);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في فصل الطالب');
-      }
-
-      if (response.ok) {
+      if (response.status === 'success') {
         toast.success('تم فصل الطالب عن ولي الأمر بنجاح');
         fetchParents(); // Refresh list
       }
     } catch (error: any) {
       console.error('Error unlinking student:', error);
-      toast.error(error.message || 'فشل في فصل الطالب');
+      const errorMessage = error.response?.data?.message || 'فشل في فصل الطالب';
+      toast.error(errorMessage);
     }
   };
 
   const handleResetPassword = async (parentId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/parents/${parentId}/reset-password`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const response = await parentsApi.resetPassword(parentId);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'فشل في إعادة تعيين كلمة المرور');
-      }
-
-      if (response.ok) {
+      if (response.status === 'success') {
         toast.success('تم إعادة تعيين كلمة المرور بنجاح');
       }
     } catch (error: any) {
       console.error('Error resetting password:', error);
-      toast.error(error.message || 'فشل في إعادة تعيين كلمة المرور');
+      const errorMessage = error.response?.data?.message || 'فشل في إعادة تعيين كلمة المرور';
+      toast.error(errorMessage);
     }
   };
 

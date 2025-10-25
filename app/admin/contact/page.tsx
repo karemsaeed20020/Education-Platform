@@ -6,6 +6,7 @@ import { Mail, User, MessageSquare, CheckCircle2, Loader2, AlertCircle, Send, X,
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import toast from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Contact {
   _id: string;
@@ -21,6 +22,27 @@ interface ReplyData {
   message: string;
 }
 
+// 🔹 دوال API لرسائل التواصل باستخدام axios
+const contactApi = {
+  // جلب جميع رسائل التواصل
+  getContacts: async () => {
+    const response = await api.get('/api/contact');
+    return response.data;
+  },
+
+  // إرسال رد
+  sendReply: async (replyData: any) => {
+    const response = await api.post('/api/contact/reply', replyData);
+    return response.data;
+  },
+
+  // حذف رسالة
+  deleteContact: async (contactId: string) => {
+    const response = await api.delete(`/api/contact/${contactId}`);
+    return response.data;
+  }
+};
+
 const ContactMessagesPage = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,25 +54,21 @@ const ContactMessagesPage = () => {
   });
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  // ✅ تحميل الرسائل
+  // ✅ تحميل الرسائل باستخدام axios
   const fetchContacts = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contact`, {
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        throw new Error(`فشل تحميل الرسائل: ${res.status}`);
-      }
-
-      const data = await res.json();
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await contactApi.getContacts();
+      
       setContacts(data.data || []);
+      toast.success('تم تحميل الرسائل بنجاح');
     } catch (err: any) {
       console.error('Fetch error:', err);
-      setError(err.message || 'حدث خطأ أثناء تحميل الرسائل');
+      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء تحميل الرسائل';
+      setError(errorMessage);
       toast.error('فشل تحميل رسائل التواصل');
     } finally {
       setLoading(false);
@@ -79,7 +97,7 @@ const ContactMessagesPage = () => {
     });
   };
 
-  // ✅ إرسال الرد
+  // ✅ إرسال الرد باستخدام axios
   const handleSendReply = async (contactId: string, contactEmail: string) => {
     if (!replyData.message.trim()) {
       toast.error('يرجى كتابة رسالة الرد');
@@ -89,45 +107,38 @@ const ContactMessagesPage = () => {
     try {
       setReplying(contactId + '-sending');
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contact/reply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          contactId,
-          to: contactEmail,
-          subject: replyData.subject,
-          message: replyData.message
-        }),
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await contactApi.sendReply({
+        contactId,
+        to: contactEmail,
+        subject: replyData.subject,
+        message: replyData.message
       });
 
-      const data = await response.json();
+      if (data.status === 'success') {
+        // تحديث حالة الرسالة إلى "تم الرد"
+        setContacts(prev => prev.map(contact =>
+          contact._id === contactId
+            ? { ...contact, replied: true }
+            : contact
+        ));
 
-      if (!response.ok) {
-        throw new Error(data.message || `فشل في إرسال الرد: ${response.status}`);
+        toast.success('تم إرسال الرد بنجاح ✅');
+        closeReplyForm();
+      } else {
+        throw new Error(data.message || 'فشل في إرسال الرد');
       }
-
-      // تحديث حالة الرسالة إلى "تم الرد"
-      setContacts(prev => prev.map(contact =>
-        contact._id === contactId
-          ? { ...contact, replied: true }
-          : contact
-      ));
-
-      toast.success('تم إرسال الرد بنجاح ✅');
-      closeReplyForm();
 
     } catch (err: any) {
       console.error('Reply error:', err);
-      toast.error(err.message || 'حدث خطأ أثناء إرسال الرد');
+      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء إرسال الرد';
+      toast.error(errorMessage);
     } finally {
       setReplying(null);
     }
   };
 
-  // ✅ حذف رسالة مع تنبيه
+  // ✅ حذف رسالة باستخدام axios
   const handleDeleteMessage = async (contactId: string) => {
     const confirmed = window.confirm('هل أنت متأكد من حذف هذه الرسالة؟');
     if (!confirmed) return;
@@ -135,24 +146,21 @@ const ContactMessagesPage = () => {
     try {
       setDeleting(contactId);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contact/${contactId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await contactApi.deleteContact(contactId);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `فشل في حذف الرسالة: ${response.status}`);
+      if (data.status === 'success') {
+        // إزالة الرسالة من القائمة
+        setContacts(prev => prev.filter(contact => contact._id !== contactId));
+        toast.success('تم حذف الرسالة بنجاح ✅');
+      } else {
+        throw new Error(data.message || 'فشل في حذف الرسالة');
       }
-
-      // إزالة الرسالة من القائمة
-      setContacts(prev => prev.filter(contact => contact._id !== contactId));
-      toast.success('تم حذف الرسالة بنجاح ✅');
 
     } catch (err: any) {
       console.error('Delete error:', err);
-      toast.error(err.message || 'حدث خطأ أثناء حذف الرسالة');
+      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء حذف الرسالة';
+      toast.error(errorMessage);
     } finally {
       setDeleting(null);
     }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -6,6 +7,7 @@ import { RootState } from '@/redux/store';
 import { useRouter } from 'next/navigation';
 import { Calendar, Users, CheckCircle, XCircle, Clock, Save, BarChart3, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
 
 interface Student {
   _id: string;
@@ -27,6 +29,21 @@ interface ClassAttendance {
   attendance: AttendanceRecord | null;
   status: string;
 }
+
+// 🔹 دوال API للحضور باستخدام axios
+const attendanceApi = {
+  // جلب الحضور اليومي
+  getDailyAttendance: async (date: string, grade: string) => {
+    const response = await api.get(`/api/attendance/daily?date=${date}&grade=${grade}`);
+    return response.data;
+  },
+
+  // حفظ الحضور
+  saveAttendance: async (attendanceData: any) => {
+    const response = await api.post('/api/attendance/daily', attendanceData);
+    return response.data;
+  }
+};
 
 const AttendancePage = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -67,22 +84,19 @@ const AttendancePage = () => {
   const fetchDailyAttendance = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance/daily?date=${selectedDate}&grade=${selectedGrade}`,
-        {
-          credentials: 'include',
-        }
-      );
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await attendanceApi.getDailyAttendance(selectedDate, selectedGrade);
       
-      const data = await response.json();
-      if (response.ok) {
+      if (data.status === 'success') {
         setStudents(data.data.attendance);
-        setFilteredStudents(data.data.attendance); // Initialize filtered students
+        setFilteredStudents(data.data.attendance);
       } else {
         toast.error(data.message || 'فشل في تحميل بيانات الحضور');
       }
-    } catch (error) {
-      toast.error('حدث خطأ أثناء تحميل البيانات');
+    } catch (error: any) {
+      console.error('Error fetching attendance:', error);
+      const errorMessage = error.response?.data?.message || 'حدث خطأ أثناء تحميل البيانات';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -120,32 +134,23 @@ const AttendancePage = () => {
         notes: student.attendance?.notes || ''
       }));
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/attendance/daily`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            students: attendanceData,
-            grade: selectedGrade,
-            date: selectedDate
-          }),
-        }
-      );
+      // ✅ استخدام axios API بدلاً من fetch
+      const data = await attendanceApi.saveAttendance({
+        students: attendanceData,
+        grade: selectedGrade,
+        date: selectedDate
+      });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (data.status === 'success') {
         toast.success('تم حفظ الحضور بنجاح');
         fetchDailyAttendance(); // تحديث البيانات
       } else {
         toast.error(data.message || 'فشل في حفظ الحضور');
       }
-    } catch (error) {
-      toast.error('حدث خطأ أثناء حفظ البيانات');
+    } catch (error: any) {
+      console.error('Error saving attendance:', error);
+      const errorMessage = error.response?.data?.message || 'حدث خطأ أثناء حفظ البيانات';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -7,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import toast from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface DailyGrade {
   _id: string;
@@ -63,32 +65,40 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
     e.preventDefault();
     if (!grade) return;
 
+    // Validate score
+    const score = parseInt(formData.score) || 0;
+    const maxScore = parseInt(formData.maxScore) || 100;
+    
+    if (score < 0) {
+      toast.error('الدرجة يجب أن تكون أكبر من أو تساوي صفر');
+      return;
+    }
+    
+    if (score > maxScore) {
+      toast.error('الدرجة لا يمكن أن تكون أكبر من الدرجة الكاملة');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/daily-grades/${grade._id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          score: parseInt(formData.score) || 0,
-          notes: formData.notes,
-          status: formData.status
-        })
+      const response = await api.put(`/api/daily-grades/${grade._id}`, {
+        score: score,
+        maxScore: maxScore,
+        notes: formData.notes,
+        status: formData.status
       });
 
-      if (response.ok) {
+      if (response.data.success) {
         toast.success('تم تحديث التقييم بنجاح');
         onOpenChange(false);
         onGradeUpdated();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء التحديث');
+        throw new Error(response.data.message || 'حدث خطأ أثناء التحديث');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating grade:', error);
-      toast.error('حدث خطأ أثناء التحديث');
+      const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ أثناء التحديث';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -101,8 +111,21 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
     }));
   };
 
+  const handleClose = () => {
+    if (!loading) {
+      onOpenChange(false);
+    }
+  };
+
+  const calculatePercentage = () => {
+    const score = parseInt(formData.score) || 0;
+    const maxScore = parseInt(formData.maxScore) || 100;
+    if (maxScore === 0) return 0;
+    return Math.round((score / maxScore) * 100);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>تعديل التقييم</DialogTitle>
@@ -158,6 +181,7 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
                   value={formData.score}
                   onChange={(e) => handleInputChange('score', e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
               <div className="grid gap-2">
@@ -168,9 +192,34 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
                   value={formData.maxScore}
                   onChange={(e) => handleInputChange('maxScore', e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
+            
+            {/* Percentage Display */}
+            <div className="grid gap-2">
+              <Label>النسبة المئوية</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={`${calculatePercentage()}%`}
+                  disabled
+                  className="bg-gray-50"
+                />
+                <div className={`w-16 text-center text-sm font-medium ${
+                  calculatePercentage() >= 90 ? 'text-green-600' :
+                  calculatePercentage() >= 80 ? 'text-blue-600' :
+                  calculatePercentage() >= 70 ? 'text-yellow-600' :
+                  calculatePercentage() >= 50 ? 'text-orange-600' : 'text-red-600'
+                }`}>
+                  {calculatePercentage() >= 90 ? 'ممتاز' :
+                   calculatePercentage() >= 80 ? 'جيد جداً' :
+                   calculatePercentage() >= 70 ? 'جيد' :
+                   calculatePercentage() >= 50 ? 'مقبول' : 'ضعيف'}
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label>التصنيف</Label>
               <Select
@@ -198,6 +247,7 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
               <Select
                 value={formData.status}
                 onValueChange={(v) => handleInputChange('status', v)}
+                disabled={loading}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -215,14 +265,23 @@ export function EditGradeDialog({ grade, open, onOpenChange, onGradeUpdated }: E
                 value={formData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 placeholder="ملاحظات إضافية"
+                disabled={loading}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose}
+              disabled={loading}
+            >
               إلغاء
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button 
+              type="submit" 
+              disabled={loading}
+            >
               {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
             </Button>
           </DialogFooter>

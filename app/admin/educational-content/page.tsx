@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -11,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Search, FileText, Download, Edit, Trash2, Star, BookOpen, Megaphone, Lightbulb, RefreshCw } from 'lucide-react';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
+import toast from 'react-hot-toast';
 
 interface EducationalContent {
   _id: string;
@@ -57,15 +60,19 @@ export default function EducationalContentPage() {
 
   const fetchContents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/educational-content/teacher', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.status === 'success') {
-        setContents(data.data.contents);
+      setLoading(true);
+      const response = await api.get('/api/educational-content/teacher');
+      
+      if (response.data.status === 'success') {
+        setContents(response.data.data.contents);
+        toast.success('تم تحميل المحتوى التعليمي بنجاح');
+      } else {
+        toast.error('فشل في تحميل المحتوى التعليمي');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching contents:', error);
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل المحتوى التعليمي';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -88,13 +95,14 @@ export default function EducationalContentPage() {
         formData.append('files', file);
       });
 
-      const response = await fetch('http://localhost:5000/api/educational-content', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
+      const response = await api.post('/api/educational-content', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
+        toast.success('تم إنشاء المحتوى التعليمي بنجاح');
         setIsCreateDialogOpen(false);
         setNewContent({
           title: '',
@@ -108,9 +116,13 @@ export default function EducationalContentPage() {
         });
         setFiles([]);
         fetchContents();
+      } else {
+        toast.error(response.data.message || 'حدث خطأ أثناء إنشاء المحتوى');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating content:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء إنشاء المحتوى';
+      toast.error(message);
     }
   };
 
@@ -118,24 +130,28 @@ export default function EducationalContentPage() {
     if (!confirm('هل أنت متأكد من حذف هذا المحتوى؟')) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/educational-content/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      const response = await api.delete(`/api/educational-content/${id}`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
+        toast.success('تم حذف المحتوى التعليمي بنجاح');
         fetchContents();
+      } else {
+        toast.error(response.data.message || 'حدث خطأ أثناء الحذف');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting content:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء الحذف';
+      toast.error(message);
     }
   };
 
   const downloadFile = async (contentId: string, fileIndex: number) => {
     try {
       window.open(`http://localhost:5000/api/educational-content/${contentId}/download/${fileIndex}`, '_blank');
-    } catch (error) {
+      toast.success('تم بدء تحميل الملف');
+    } catch (error: any) {
       console.error('Error downloading file:', error);
+      toast.error('حدث خطأ أثناء تحميل الملف');
     }
   };
 
@@ -158,18 +174,18 @@ export default function EducationalContentPage() {
   };
 
   const getTypeBadge = (type: string) => {
-  const typeConfig = {
-    'ملف_دراسي': { label: 'ملف دراسي', variant: 'default' as const },
-    'مرجع_إضافي': { label: 'مرجع إضافي', variant: 'secondary' as const },
-    'ملاحظة_عامة': { label: 'ملاحظة عامة', variant: 'outline' as const },
-    'تنبيه_مهم': { label: 'تنبيه مهم', variant: 'destructive' as const },
-    'توجيه_دراسي': { label: 'توجيه دراسي', variant: 'default' as const }, // Changed from 'success' to 'default'
-    'تحديث_منهج': { label: 'تحديث منهج', variant: 'default' as const }
+    const typeConfig = {
+      'ملف_دراسي': { label: 'ملف دراسي', variant: 'default' as const },
+      'مرجع_إضافي': { label: 'مرجع إضافي', variant: 'secondary' as const },
+      'ملاحظة_عامة': { label: 'ملاحظة عامة', variant: 'outline' as const },
+      'تنبيه_مهم': { label: 'تنبيه مهم', variant: 'destructive' as const },
+      'توجيه_دراسي': { label: 'توجيه دراسي', variant: 'default' as const },
+      'تحديث_منهج': { label: 'تحديث منهج', variant: 'default' as const }
+    };
+    
+    const config = typeConfig[type as keyof typeof typeConfig];
+    return <Badge variant={config.variant}>{config.label}</Badge>;
   };
-  
-  const config = typeConfig[type as keyof typeof typeConfig];
-  return <Badge variant={config.variant}>{config.label}</Badge>;
-};
 
   const filteredContents = contents.filter(content => {
     const matchesSearch = content.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -180,7 +196,14 @@ export default function EducationalContentPage() {
   });
 
   if (loading) {
-    return <div className="p-6">جاري التحميل...</div>;
+    return (
+      <div className="p-6 flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">جاري تحميل المحتوى التعليمي...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -479,6 +502,11 @@ export default function EducationalContentPage() {
                 })}
               </TableBody>
             </Table>
+            {filteredContents.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                لا توجد محتويات تعليمية مطابقة للبحث
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

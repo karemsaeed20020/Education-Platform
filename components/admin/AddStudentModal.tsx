@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 // ✅ Validation schema
 const studentSchema = z
@@ -66,23 +67,20 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
 
   const onSubmit = async (data: StudentForm) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/students`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
+      const response = await api.post('/api/users/students', data);
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || 'فشل إضافة الطالب');
-
-      toast.success('✅ تم إضافة الطالب بنجاح');
-      onStudentAdded();
-      reset();
-      onClose();
+      if (response.data.success) {
+        toast.success('✅ تم إضافة الطالب بنجاح');
+        onStudentAdded();
+        reset();
+        onClose();
+      } else {
+        throw new Error(response.data.message || 'فشل إضافة الطالب');
+      }
     } catch (err: any) {
       console.error('❌ Add student error:', err);
-      toast.error(err.message || 'حدث خطأ أثناء إضافة الطالب');
+      const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء إضافة الطالب';
+      toast.success(errorMessage);
     }
   };
 

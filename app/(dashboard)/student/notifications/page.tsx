@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Check, Trash2, Filter, Bell, Send, MessageCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Notification {
   _id: string;
@@ -40,19 +42,15 @@ export default function StudentNotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/notifications', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/notifications');
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setNotifications(data.data.notifications);
-        }
+      if (response.data.status === 'success') {
+        setNotifications(response.data.data.notifications);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching notifications:', error);
-      toast.error('فشل في تحميل الإشعارات');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل الإشعارات';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -60,12 +58,9 @@ export default function StudentNotificationsPage() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
-        method: 'PATCH',
-        credentials: 'include'
-      });
+      const response = await api.patch(`/api/notifications/${notificationId}/read`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         setNotifications(prev =>
           prev.map(notif =>
             notif._id === notificationId ? { ...notif, isRead: true } : notif
@@ -73,26 +68,25 @@ export default function StudentNotificationsPage() {
         );
         toast.success('تم وضع علامة مقروء');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error marking notification as read:', error);
-      toast.error('فشل في تحديث الإشعار');
+      const errorMessage = error.response?.data?.message || 'فشل في تحديث الإشعار';
+      toast.error(errorMessage);
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/read-all', {
-        method: 'PATCH',
-        credentials: 'include'
-      });
+      const response = await api.patch('/api/notifications/read-all');
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
         toast.success('تم وضع علامة مقروء على جميع الإشعارات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error marking all as read:', error);
-      toast.error('فشل في تحديث الإشعارات');
+      const errorMessage = error.response?.data?.message || 'فشل في تحديث الإشعارات';
+      toast.error(errorMessage);
     }
   };
 
@@ -103,24 +97,18 @@ export default function StudentNotificationsPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/student/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(messageToAdmin)
-      });
+      const response = await api.post('/api/notifications/student/send', messageToAdmin);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         toast.success('تم إرسال الرسالة بنجاح للمشرفين');
         setMessageToAdmin({ subject: '', message: '' });
       } else {
         toast.error('فشل في إرسال الرسالة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
-      toast.error('فشل في إرسال الرسالة');
+      const errorMessage = error.response?.data?.message || 'فشل في إرسال الرسالة';
+      toast.error(errorMessage);
     }
   };
 

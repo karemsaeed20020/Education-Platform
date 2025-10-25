@@ -57,6 +57,20 @@ export default function Login() {
     }
   }, [user, loading, router]);
 
+  // Add this useEffect to your login component to verify token is working
+useEffect(() => {
+  if (user && user.role === 'admin') {
+    console.log('✅ Login successful, user:', user);
+    console.log('🔐 Token should be automatically included in all API calls');
+    
+    // Test if we can access admin routes
+    setTimeout(() => {
+      router.push('/admin/dashboard');
+    }, 1000);
+  }
+}, [user, router]);
+
+  
   function onSubmit(values: LoginValues) {
     dispatch(loginUser(values))
       .unwrap()

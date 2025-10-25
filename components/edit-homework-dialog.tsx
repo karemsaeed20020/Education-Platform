@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import toast from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Homework {
   _id: string;
@@ -67,40 +69,39 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/homework/${homework._id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          grade: formData.grade,
-          dueDate: formData.dueDate,
-          textContent: formData.textContent,
-          status: formData.status
-        })
+      const response = await api.put(`/api/homework/${homework._id}`, {
+        title: formData.title,
+        description: formData.description,
+        grade: formData.grade,
+        dueDate: formData.dueDate,
+        textContent: formData.textContent,
+        status: formData.status
       });
 
-      if (response.ok) {
+      if (response.data.success) {
         toast.success('تم تحديث الواجب بنجاح');
         onOpenChange(false);
         onHomeworkUpdated();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'حدث خطأ أثناء التحديث');
+        throw new Error(response.data.message || 'حدث خطأ أثناء التحديث');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating homework:', error);
-      toast.error('حدث خطأ أثناء التحديث');
+      const errorMessage = error.response?.data?.message || error.message || 'حدث خطأ أثناء التحديث';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleClose = () => {
+    if (!loading) {
+      onOpenChange(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>تعديل الواجب</DialogTitle>
@@ -118,6 +119,7 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
                 placeholder="أدخل عنوان الواجب"
                 required
+                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
@@ -129,6 +131,7 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                 placeholder="أدخل وصف مفصل للواجب"
                 rows={3}
                 required
+                disabled={loading}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -137,6 +140,7 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                 <Select
                   value={formData.grade}
                   onValueChange={(value) => setFormData({...formData, grade: value})}
+                  disabled={loading}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="اختر الصف" />
@@ -155,6 +159,7 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                   value={formData.dueDate}
                   onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -166,6 +171,7 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                 onChange={(e) => setFormData({...formData, textContent: e.target.value})}
                 placeholder="محتوى الواجب النصي..."
                 rows={3}
+                disabled={loading}
               />
             </div>
             <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -182,15 +188,24 @@ export function EditHomeworkDialog({ homework, open, onOpenChange, onHomeworkUpd
                   onCheckedChange={(checked) => 
                     setFormData({...formData, status: checked ? 'active' : 'archived'})
                   }
+                  disabled={loading}
                 />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose}
+              disabled={loading}
+            >
               إلغاء
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button 
+              type="submit" 
+              disabled={loading}
+            >
               {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
             </Button>
           </DialogFooter>

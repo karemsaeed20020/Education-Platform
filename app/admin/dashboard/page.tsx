@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -21,6 +22,8 @@ import {
   XCircle,
   Clock4
 } from 'lucide-react';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
+import toast from 'react-hot-toast';
 
 interface DashboardStats {
   totalStudents: number;
@@ -85,27 +88,97 @@ export default function DashboardPage() {
     setRefreshing(true);
     try {
       // جلب الإحصائيات الرئيسية
-      const statsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/dashboard/stats`, {
-        credentials: 'include'
-      });
+      const statsResponse = await api.get('/api/admin/dashboard/stats');
       
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData.data);
+      if (statsResponse.data.status === 'success') {
+        setStats(statsResponse.data.data);
+      } else {
+        toast.error('فشل في تحميل الإحصائيات');
       }
 
       // جلب الأنشطة الحديثة
-      const activitiesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/dashboard/activities`, {
-        credentials: 'include'
-      });
+      const activitiesResponse = await api.get('/api/admin/dashboard/activities');
       
-      if (activitiesResponse.ok) {
-        const activitiesData = await activitiesResponse.json();
-        setRecentActivities(activitiesData.data);
+      if (activitiesResponse.data.status === 'success') {
+        setRecentActivities(activitiesResponse.data.data);
+      } else {
+        toast.error('فشل في تحميل الأنشطة الحديثة');
       }
 
-    } catch (error) {
+      toast.success('تم تحديث البيانات بنجاح');
+
+    } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل بيانات لوحة التحكم';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // دالة بديلة في حالة عدم وجود الـ endpoints
+  const fetchMockData = async () => {
+    setRefreshing(true);
+    try {
+      // بيانات وهمية للاختبار
+      const mockStats = {
+        totalStudents: 1250,
+        activeStudents: 980,
+        totalTeachers: 45,
+        totalCourses: 28,
+        totalOrders: 345,
+        totalRevenue: 125000,
+        newStudentsThisMonth: 42,
+        growthRate: 12,
+        presentToday: 850,
+        absentToday: 150,
+        attendanceRateToday: 85,
+        totalTodayAttendance: 1000,
+        totalExams: 15,
+        totalExamAttempts: 2340,
+        averageExamScore: 78,
+        bestExamScore: 98
+      };
+
+      const mockActivities = [
+        {
+          _id: '1',
+          type: 'exam',
+          message: 'طالب أكمل امتحان اللغة العربية',
+          time: new Date().toISOString(),
+          user: 'أحمد محمد'
+        },
+        {
+          _id: '2',
+          type: 'attendance',
+          message: 'تسجيل حضور 25 طالب',
+          time: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+          user: 'نظام الحضور'
+        },
+        {
+          _id: '3',
+          type: 'purchase',
+          message: 'اشتراك جديد في كورس النحو',
+          time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          user: 'مريم عبدالله'
+        },
+        {
+          _id: '4',
+          type: 'login',
+          message: 'تسجيل دخول جديد',
+          time: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+          user: 'خالد إبراهيم'
+        }
+      ];
+
+      setStats(mockStats);
+      setRecentActivities(mockActivities);
+      toast.success('تم تحميل البيانات التجريبية بنجاح');
+
+    } catch (error) {
+      console.error('Error loading mock data:', error);
+      toast.error('حدث خطأ في تحميل البيانات');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -169,14 +242,26 @@ export default function DashboardPage() {
           </p>
         </div>
         
-        <button
-          onClick={fetchDashboardData}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'جاري التحديث...' : 'تحديث البيانات'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchDashboardData}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'جاري التحديث...' : 'تحديث البيانات'}
+          </button>
+          
+          {/* زر للبيانات التجريبية - يمكن إزالته لاحقاً */}
+          <button
+            onClick={fetchMockData}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            <BarChart3 className="h-4 w-4" />
+            بيانات تجريبية
+          </button>
+        </div>
       </div>
 
       {/* شبكة الإحصائيات الرئيسية */}

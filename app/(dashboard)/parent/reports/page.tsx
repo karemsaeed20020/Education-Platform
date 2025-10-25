@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Download, FileText, BarChart3, Calendar, User, Award, TrendingUp } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice'; // Import the api instance
 
 interface Child {
   _id: string;
@@ -75,22 +77,18 @@ export default function ParentReportsPage() {
 
   const fetchChildren = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/parent/dashboard', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/parent/dashboard');
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setChildren(data.data.parent.children);
-          if (data.data.parent.children.length > 0) {
-            setSelectedChild(data.data.parent.children[0]._id);
-          }
+      if (response.data.status === 'success') {
+        setChildren(response.data.data.parent.children);
+        if (response.data.data.parent.children.length > 0) {
+          setSelectedChild(response.data.data.parent.children[0]._id);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching children:', error);
-      toast.error('فشل في تحميل بيانات الأبناء');
+      const errorMessage = error.response?.data?.message || 'فشل في تحميل بيانات الأبناء';
+      toast.error(errorMessage);
     }
   };
 
@@ -102,29 +100,25 @@ export default function ParentReportsPage() {
 
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      const params: any = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
-      const response = await fetch(
-        `http://localhost:5000/api/parent/child/${selectedChild}/report?${params}`,
-        {
-          credentials: 'include'
-        }
+      const response = await api.get(
+        `/api/parent/child/${selectedChild}/report`,
+        { params }
       );
 
-      if (!response.ok) {
+      if (response.data.status === 'success') {
+        setReportData(response.data.data);
+        toast.success('تم إنشاء التقرير بنجاح');
+      } else {
         throw new Error('فشل في إنشاء التقرير');
       }
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        setReportData(data.data);
-        toast.success('تم إنشاء التقرير بنجاح');
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating report:', error);
-      toast.error('فشل في إنشاء التقرير');
+      const errorMessage = error.response?.data?.message || 'فشل في إنشاء التقرير';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -137,19 +131,20 @@ export default function ParentReportsPage() {
     }
 
     try {
-      const params = new URLSearchParams();
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      const params: any = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
-      const response = await fetch(
-        `http://localhost:5000/api/parent/child/${selectedChild}/report/export?${params}`,
-        {
-          credentials: 'include'
+      const response = await api.get(
+        `/api/parent/child/${selectedChild}/report/export`,
+        { 
+          params,
+          responseType: 'blob' // Important for file downloads
         }
       );
 
-      if (response.ok) {
-        const blob = await response.blob();
+      if (response.data) {
+        const blob = new Blob([response.data], { type: 'application/pdf' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -159,12 +154,11 @@ export default function ParentReportsPage() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         toast.success('تم تحميل التقرير بنجاح');
-      } else {
-        toast.error('فشل في تصدير التقرير');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error exporting report:', error);
-      toast.error('فشل في تصدير التقرير');
+      const errorMessage = error.response?.data?.message || 'فشل في تصدير التقرير';
+      toast.error(errorMessage);
     }
   };
 

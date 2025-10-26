@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -29,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import toast, { Toaster } from 'react-hot-toast';
 import io, { Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
+import { api } from '@/redux/slices/authSlice'; // ✅ Import api instance
 
 interface User {
   _id: string;
@@ -60,7 +62,7 @@ interface Conversation {
 }
 
 export default function StudentChatsPage() {
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
@@ -76,15 +78,6 @@ export default function StudentChatsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  // Debug logs
-  useEffect(() => {
-    console.log('🔍 User:', user);
-    console.log('🔍 Teachers:', teachers);
-    console.log('🔍 Selected User:', selectedUser);
-    console.log('🔍 Messages:', messages);
-    console.log('🔍 Conversations:', conversations);
-  }, [user, teachers, selectedUser, messages, conversations]);
-
   // التحقق من أن المستخدم طالب
   useEffect(() => {
     if (user && user.role !== 'student') {
@@ -93,42 +86,40 @@ export default function StudentChatsPage() {
     }
   }, [user, router]);
 
+  // Socket initialization
   useEffect(() => {
-    if (!user) return;
+    if (!user || !token) return;
 
-    // تهيئة Socket connection
-    socketRef.current = io('http://localhost:5000', {
-      withCredentials: true
+    console.log('🔌 Initializing socket connection...');
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
+      withCredentials: true,
+      auth: {
+        token: token
+      }
     });
 
-    // انضمام المستخدم إلى الغرفة
     if (user._id) {
       socketRef.current.emit('join', user._id);
-      console.log('✅ Joined socket room:', user._id);
+      console.log('✅ Student joined socket room:', user._id);
     }
 
-    // استماع للرسائل الجديدة
     socketRef.current.on('newMessage', (message: Message) => {
       console.log('📨 New message received:', message);
       
-      // إذا كانت الرسالة موجهة للمستخدم الحالي أو من المستخدم المحدد
       if (message.receiver._id === user._id || message.sender._id === selectedUser?._id) {
         setMessages(prev => [...prev, message]);
+        toast.success(`رسالة جديدة من ${message.sender.username}`);
       }
       
-      // تحديث قائمة المحادثات
       fetchConversations();
     });
 
-    // استماع لحالة الكتابة
     socketRef.current.on('userTyping', (data) => {
-      console.log('⌨️ Typing status:', data);
       if (data.userId === selectedUser?._id) {
         setIsTyping(data.isTyping);
       }
     });
 
-    // استماع لأخطاء الاتصال
     socketRef.current.on('connect_error', (error) => {
       console.error('❌ Socket connection error:', error);
       toast.error('فشل الاتصال بالخادم');
@@ -144,12 +135,12 @@ export default function StudentChatsPage() {
         console.log('🔌 Socket disconnected');
       }
     };
-  }, [user, selectedUser]);
+  }, [user, token, selectedUser]);
 
   // تحميل البيانات الأولية
   useEffect(() => {
     if (user && user.role === 'student') {
-      console.log('🎯 Loading initial data...');
+      console.log('🎯 Loading initial data for student...');
       fetchConversations();
       fetchTeachers();
     }
@@ -169,6 +160,8 @@ export default function StudentChatsPage() {
     if (selectedUser) {
       console.log('🎯 Selected user changed, fetching messages...');
       fetchMessages(selectedUser._id);
+    } else {
+      setMessages([]);
     }
   }, [selectedUser]);
 
@@ -180,139 +173,126 @@ export default function StudentChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // ✅ Fixed: Use api instance
   const fetchConversations = async () => {
     try {
       setLoading(true);
       console.log('🔄 Fetching conversations...');
       
-      const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:5000/api/chat/conversations?t=${timestamp}`, {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
+      const response = await api.get('/api/chat/conversations');
+      console.log('📡 Conversations response:', response.data);
       
-      console.log('📡 Conversations response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Conversations data:', data);
-        
-        if (data.data && data.data.conversations) {
-          setConversations(data.data.conversations);
-        } else {
-          console.warn('⚠️ No conversations data found');
-          setConversations([]);
-        }
+      if (response.data.status === 'success') {
+        setConversations(response.data.data?.conversations || []);
+        console.log('✅ Conversations loaded:', response.data.data?.conversations?.length);
       } else {
-        console.error('❌ Failed to fetch conversations');
         toast.error('فشل في تحميل المحادثات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching conversations:', error);
-      toast.error('حدث خطأ في تحميل المحادثات');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل المحادثات';
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchTeachers = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching teachers...');
+      console.log('🔄 Fetching teachers and admins...');
       
-      const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:5000/api/chat/users?t=${timestamp}`, {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
+      const response = await api.get('/api/chat/users');
+      console.log('📡 Full API response:', response.data);
       
-      console.log('📡 Teachers response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Teachers API response:', data);
+      if (response.data.status === 'success') {
+        const allUsers = response.data.data?.users || [];
+        console.log('👥 All users received:', allUsers.length);
         
-        if (data.data && data.data.users) {
-          // تصفية المعلمين والإداريين فقط
-          const teachersAndAdmins = data.data.users.filter((user: User) => 
-            user.role === 'teacher' || user.role === 'admin'
-          );
-          console.log('👥 Filtered teachers/admins:', teachersAndAdmins);
-          setTeachers(teachersAndAdmins);
-          
-          // إذا لم يكن هناك مستخدم محدد، اختيار أول معلم تلقائياً
-          if (teachersAndAdmins.length > 0 && !selectedUser) {
-            console.log('🚀 Auto-selecting first teacher from:', teachersAndAdmins);
-            const firstTeacher = teachersAndAdmins[0];
-            setSelectedUser(firstTeacher);
-          }
-        } else {
-          console.error('❌ No users data in response');
-          setTeachers([]);
+        // Log all users to see what we have
+        allUsers.forEach((u: User, index: number) => {
+          console.log(`User ${index + 1}:`, {
+            id: u._id,
+            username: u.username,
+            role: u.role,
+            grade: u.grade
+          });
+        });
+        
+        // Filter teachers and admins
+        const teachersAndAdmins = allUsers.filter((u: User) => 
+          u.role === 'teacher' || u.role === 'admin'
+        );
+        
+        console.log('✅ Filtered teachers/admins:', teachersAndAdmins.length);
+        console.log('📋 Teachers and Admins:', teachersAndAdmins.map((t: User) => ({
+          username: t.username,
+          role: t.role
+        })));
+        
+        setTeachers(teachersAndAdmins);
+        
+        // اختيار أول معلم/مدير تلقائياً
+        if (teachersAndAdmins.length > 0 && !selectedUser) {
+          console.log('🚀 Auto-selecting first teacher/admin:', teachersAndAdmins[0].username);
+          setSelectedUser(teachersAndAdmins[0]);
+        } else if (teachersAndAdmins.length === 0) {
+          console.warn('⚠️ No teachers or admins found in the system');
+          toast.error('لا يوجد معلمين أو مديرين متاحين حالياً');
         }
       } else {
-        console.error('❌ Failed to fetch teachers');
+        console.error('❌ API response not successful:', response.data);
         toast.error('فشل في تحميل قائمة المعلمين');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching teachers:', error);
-      toast.error('حدث خطأ في تحميل قائمة المعلمين');
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل قائمة المعلمين';
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchMessages = async (userId: string) => {
     try {
       setMessagesLoading(true);
       console.log(`🔄 Fetching messages for user: ${userId}`);
       
-      const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:5000/api/chat/conversations/${userId}?t=${timestamp}`, {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
+      const response = await api.get(`/api/chat/conversations/${userId}`);
+      console.log('📡 Messages response:', response.data);
       
-      console.log('📡 Messages response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Messages data:', data);
-        
-        if (data.data && data.data.messages) {
-          setMessages(data.data.messages);
-          console.log(`✅ Loaded ${data.data.messages.length} messages`);
-        } else {
-          console.warn('⚠️ No messages data found');
-          setMessages([]);
-        }
+      if (response.data.status === 'success') {
+        const msgs = response.data.data?.messages || [];
+        console.log(`✅ Loaded ${msgs.length} messages`);
+        setMessages(msgs);
       } else {
-        console.error('❌ Failed to fetch messages');
-        toast.error('فشل في تحميل الرسائل');
+        console.warn('⚠️ No messages data found');
+        setMessages([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching messages:', error);
-      toast.error('حدث خطأ في تحميل الرسائل');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الرسائل';
+      toast.error(message);
     } finally {
       setMessagesLoading(false);
     }
   };
 
-  const handleUserClick = (user: User) => {
-    console.log('👆 User clicked:', user);
-    setSelectedUser(user);
-    // سيتم تفعيل useEffect تلقائياً لجلب الرسائل
+  const handleUserClick = (clickedUser: User) => {
+    console.log('👆 User clicked:', clickedUser.username);
+    setSelectedUser(clickedUser);
   };
 
+  // ✅ Fixed: Use api instance
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) {
       console.log('❌ Cannot send message - missing data');
@@ -320,50 +300,38 @@ export default function StudentChatsPage() {
     }
 
     try {
-      console.log('📤 Sending message:', newMessage, 'to:', selectedUser._id);
+      console.log('📤 Sending message to:', selectedUser.username);
 
       const messageData = {
         receiverId: selectedUser._id,
         message: newMessage.trim()
       };
 
-      // إرسال الرسالة عبر Socket للتواصل الفوري
+      // إرسال عبر Socket
       if (socketRef.current) {
         socketRef.current.emit('sendMessage', messageData);
         console.log('✅ Message sent via socket');
       }
 
-      // إرسال الرسالة إلى API للحفظ في قاعدة البيانات
-      const response = await fetch('http://localhost:5000/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(messageData)
-      });
+      // إرسال إلى API
+      const response = await api.post('/api/chat/messages', messageData);
+      console.log('📡 Send message response:', response.data);
 
-      console.log('📡 Send message response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Message saved to database:', data);
-        
-        // إضافة الرسالة إلى القائمة مباشرة
-        if (data.data && data.data.message) {
-          setMessages(prev => [...prev, data.data.message]);
+      if (response.data.status === 'success') {
+        if (response.data.data && response.data.data.message) {
+          setMessages(prev => [...prev, response.data.data.message]);
         }
         
         setNewMessage('');
-        fetchConversations(); // تحديث قائمة المحادثات
+        fetchConversations();
+        toast.success('تم إرسال الرسالة');
       } else {
-        const errorData = await response.json();
-        console.error('❌ Failed to save message:', errorData);
-        toast.error(errorData.message || 'حدث خطأ في إرسال الرسالة');
+        toast.error(response.data.message || 'حدث خطأ في إرسال الرسالة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error sending message:', error);
-      toast.error('حدث خطأ في إرسال الرسالة');
+      const message = error.response?.data?.message || 'حدث خطأ في إرسال الرسالة';
+      toast.error(message);
     }
   };
 
@@ -387,7 +355,6 @@ export default function StudentChatsPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
     
-    // إرسال حالة الكتابة
     if (e.target.value.trim()) {
       handleTyping(true);
     } else {
@@ -404,16 +371,14 @@ export default function StudentChatsPage() {
     }
   };
 
+  // ✅ Fixed: Use api instance
   const deleteConversation = async (userId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه المحادثة؟')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/chat/conversations/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      const response = await api.delete(`/api/chat/conversations/${userId}`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         toast.success('تم حذف المحادثة بنجاح');
         setConversations(prev => prev.filter(conv => 
           !conv.participants.some(p => p._id === userId)
@@ -425,9 +390,10 @@ export default function StudentChatsPage() {
       } else {
         toast.error('حدث خطأ في حذف المحادثة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting conversation:', error);
-      toast.error('حدث خطأ في حذف المحادثة');
+      const message = error.response?.data?.message || 'حدث خطأ في حذف المحادثة';
+      toast.error(message);
     }
   };
 
@@ -449,19 +415,27 @@ export default function StudentChatsPage() {
   );
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('ar-EG', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(dateString).toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return '--:--';
+    }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ar-EG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    try {
+      return new Date(dateString).toLocaleDateString('ar-EG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'تاريخ غير معروف';
+    }
   };
 
   const getRoleDisplay = (user: User) => {
@@ -490,16 +464,7 @@ export default function StudentChatsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-        }}
-      />
+      <Toaster position="top-center" />
       
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -512,17 +477,22 @@ export default function StudentChatsPage() {
               size="icon"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="ml-2"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-          {/* <p className="text-gray-600">
-            التواصل مع معلمي وإداريي الصف {user.grade}
+          <p className="text-gray-600">
+            التواصل مع معلمي وإداريي المدرسة
           </p>
-          <div className="mt-2 text-sm text-gray-500">
-            <p>المستخدم: {user.username} | الصف: {user.grade} | الدور: {getRoleDisplay(user)}</p>
-          </div> */}
+          {/* Debug info - remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 text-xs text-gray-500 bg-gray-100 p-2 rounded">
+              <p>📊 Debug Info:</p>
+              <p>• معلمين/مديرين متاحين: {teachers.length}</p>
+              <p>• محادثات نشطة: {conversations.length}</p>
+              <p>• مستخدم محدد: {selectedUser ? selectedUser.username : 'لا يوجد'}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -573,7 +543,10 @@ export default function StudentChatsPage() {
                 {activeSection === 'chats' ? (
                   <div className="space-y-2">
                     {loading ? (
-                      <div className="text-center py-8 text-gray-500">جاري تحميل المحادثات...</div>
+                      <div className="text-center py-8 text-gray-500">
+                        <RefreshCw className="h-6 w-6 mx-auto mb-2 animate-spin" />
+                        جاري تحميل المحادثات...
+                      </div>
                     ) : filteredConversations.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <MessageCircle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
@@ -593,7 +566,7 @@ export default function StudentChatsPage() {
                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                               selectedUser?._id === otherUser._id 
                                 ? 'bg-blue-50 border border-blue-200' 
-                                : 'hover:bg-gray-50 border border-transparent'
+                                : 'hover:bg-gray-50'
                             }`}
                             onClick={() => handleUserClick(otherUser)}
                           >
@@ -644,12 +617,32 @@ export default function StudentChatsPage() {
                 ) : (
                   <div className="space-y-2">
                     {loading ? (
-                      <div className="text-center py-8 text-gray-500">جاري تحميل المعلمين...</div>
+                      <div className="text-center py-8 text-gray-500">
+                        <RefreshCw className="h-6 w-6 mx-auto mb-2 animate-spin" />
+                        جاري تحميل المعلمين...
+                      </div>
                     ) : filteredTeachers.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p>لا توجد معلمين أو مديرين</p>
-                        <p className="text-sm mt-1">سيظهرون هنا عندما يتوفرون</p>
+                        <p className="font-medium mb-2">لا توجد معلمين أو مديرين</p>
+                        {searchTerm ? (
+                          <p className="text-sm">لا توجد نتائج للبحث {searchTerm}</p>
+                        ) : (
+                          <>
+                            <p className="text-sm mb-3">لم يتم العثور على أي معلمين أو مديرين</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                console.log('🔄 Manual refresh triggered');
+                                fetchTeachers();
+                              }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              تحديث القائمة
+                            </Button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       filteredTeachers.map((teacher) => (
@@ -658,7 +651,7 @@ export default function StudentChatsPage() {
                           className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                             selectedUser?._id === teacher._id 
                               ? 'bg-blue-50 border border-blue-200' 
-                              : 'hover:bg-gray-50 border border-transparent'
+                              : 'hover:bg-gray-50'
                           }`}
                           onClick={() => handleUserClick(teacher)}
                         >
@@ -754,7 +747,10 @@ export default function StudentChatsPage() {
                   {/* Messages */}
                   <ScrollArea className="flex-1 p-4">
                     {messagesLoading ? (
-                      <div className="text-center py-8 text-gray-500">جاري تحميل الرسائل...</div>
+                      <div className="text-center py-8 text-gray-500">
+                        <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                        <p>جاري تحميل الرسائل...</p>
+                      </div>
                     ) : messages.length === 0 ? (
                       <div className="text-center py-16 text-gray-500">
                         <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -769,14 +765,14 @@ export default function StudentChatsPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Date Separator */}
-                        <div className="text-center">
-                          <Badge variant="secondary" className="text-xs">
-                            {messages.length > 0 && formatDate(messages[0].createdAt)}
-                          </Badge>
-                        </div>
+                        {messages.length > 0 && (
+                          <div className="text-center">
+                            <Badge variant="secondary" className="text-xs">
+                              {formatDate(messages[0].createdAt)}
+                            </Badge>
+                          </div>
+                        )}
 
-                        {/* Messages */}
                         {messages.map((message) => (
                           <div
                             key={message._id}
@@ -798,7 +794,7 @@ export default function StudentChatsPage() {
                                     : 'bg-gray-100 text-gray-800 rounded-bl-none'
                                 }`}
                               >
-                                <p className="text-sm">{message.message}</p>
+                                <p className="text-sm break-words">{message.message}</p>
                                 <p className={`text-xs mt-1 ${
                                   message.sender._id === user?._id
                                     ? 'text-blue-100'

@@ -1,4 +1,5 @@
-// app/admin/chat/page.jsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/admin/chat/page.tsx
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -12,7 +13,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   MessageCircle, 
   Send, 
-  Users, 
   Search,
   MoreVertical,
   GraduationCap,
@@ -20,8 +20,7 @@ import {
   BookOpen,
   RefreshCw,
   Home,
-  Shield,
-  AlertCircle
+  Shield
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -33,6 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import toast, { Toaster } from 'react-hot-toast';
 import io, { Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
+import { api } from '@/redux/slices/authSlice'; // ✅ Import api instance
 
 interface User {
   _id: string;
@@ -42,7 +42,6 @@ interface User {
   profilePicture?: string;
   grade?: string;
 }
-
 
 interface Message {
   _id: string;
@@ -65,7 +64,7 @@ interface Conversation {
 }
 
 export default function AdminChatsPage() {
-  const { user  } = useSelector((state: RootState) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [students, setStudents] = useState<User[]>([]);
@@ -83,19 +82,6 @@ export default function AdminChatsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  // Debug logs
-  useEffect(() => {
-    console.log('🔍 Current State:', {
-      user: user,
-      selectedUser: selectedUser,
-      messagesCount: messages.length,
-      conversationsCount: conversations.length,
-      studentsCount: students.length,
-      teachersCount: teachers.length,
-      parentsCount: parents.length
-    });
-  }, [user, selectedUser, messages, conversations, students, teachers, parents]);
-
   // التحقق من أن المستخدم مدير
   useEffect(() => {
     if (user && user.role !== 'admin') {
@@ -104,32 +90,26 @@ export default function AdminChatsPage() {
     }
   }, [user, router]);
 
+  // Socket initialization
   useEffect(() => {
-    if (!user) return;
+    if (!user || !token) return;
 
-    // تهيئة Socket connection
-    socketRef.current = io('http://localhost:5000', {
-      withCredentials: true
+    console.log('🔌 Initializing socket connection...');
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
+      withCredentials: true,
+      auth: {
+        token: token
+      }
     });
 
-    // انضمام المستخدم إلى الغرفة
     if (user._id) {
       socketRef.current.emit('join', user._id);
       console.log('✅ Admin joined socket room:', user._id);
     }
 
-    // استماع للرسائل الجديدة
     socketRef.current.on('newMessage', (message: Message) => {
-      console.log('📨 NEW MESSAGE RECEIVED:', {
-        messageId: message._id,
-        sender: message.sender?.username,
-        receiver: message.receiver?.username,
-        text: message.message,
-        selectedUser: selectedUser?._id,
-        currentUser: user._id
-      });
+      console.log('📨 NEW MESSAGE RECEIVED:', message);
       
-      // إذا كانت الرسالة في المحادثة الحالية
       if (selectedUser && 
           (message.sender._id === selectedUser._id || message.receiver._id === selectedUser._id)) {
         console.log('✅ Adding message to current conversation');
@@ -137,13 +117,10 @@ export default function AdminChatsPage() {
         toast.success(`رسالة جديدة من ${message.sender.username}`);
       }
       
-      // تحديث قائمة المحادثات
       fetchConversations();
     });
 
-    // استماع لحالة الكتابة
     socketRef.current.on('userTyping', (data) => {
-      console.log('⌨️ Typing status:', data);
       if (data.userId === selectedUser?._id) {
         setIsTyping(data.isTyping);
       }
@@ -164,7 +141,7 @@ export default function AdminChatsPage() {
         console.log('🔌 Socket disconnected');
       }
     };
-  }, [user, selectedUser]);
+  }, [user, token, selectedUser]);
 
   // تحميل البيانات الأولية
   useEffect(() => {
@@ -208,144 +185,115 @@ export default function AdminChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // ✅ Fixed: Use api instance
   const fetchConversations = async () => {
     try {
       setLoading(true);
       console.log('🔄 Fetching conversations...');
       
-      const response = await fetch('http://localhost:5000/api/chat/conversations', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/chat/conversations');
+      console.log('📡 Conversations response:', response.data);
       
-      console.log('📡 Conversations response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Conversations data:', data);
-        setConversations(data.data?.conversations || []);
+      if (response.data.status === 'success') {
+        setConversations(response.data.data?.conversations || []);
+        console.log('✅ Conversations loaded:', response.data.data?.conversations?.length);
       } else {
-        console.error('❌ Failed to fetch conversations');
         toast.error('فشل في تحميل المحادثات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching conversations:', error);
-      toast.error('حدث خطأ في تحميل المحادثات');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل المحادثات';
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchStudents = async () => {
     try {
       console.log('🔄 Fetching students...');
       
-      const response = await fetch('http://localhost:5000/api/chat/users', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/chat/users');
       
-      if (response.ok) {
-        const data = await response.json();
-        const studentsList = data.data?.users?.filter((user: User) => user.role === 'student') || [];
+      if (response.data.status === 'success') {
+        const studentsList = response.data.data?.users?.filter((user: User) => user.role === 'student') || [];
         console.log('✅ Students loaded:', studentsList.length);
         setStudents(studentsList);
       } else {
-        console.error('❌ Failed to fetch students');
         toast.error('فشل في تحميل قائمة الطلاب');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching students:', error);
-      toast.error('حدث خطأ في تحميل قائمة الطلاب');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل قائمة الطلاب';
+      toast.error(message);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchTeachers = async () => {
     try {
       console.log('🔄 Fetching teachers...');
       
-      const response = await fetch('http://localhost:5000/api/chat/users', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/chat/users');
       
-      if (response.ok) {
-        const data = await response.json();
-        const teachersList = data.data?.users?.filter((user: User) => user.role === 'teacher') || [];
+      if (response.data.status === 'success') {
+        const teachersList = response.data.data?.users?.filter((user: User) => user.role === 'teacher') || [];
         console.log('✅ Teachers loaded:', teachersList.length);
         setTeachers(teachersList);
       } else {
-        console.error('❌ Failed to fetch teachers');
         toast.error('فشل في تحميل قائمة المعلمين');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching teachers:', error);
-      toast.error('حدث خطأ في تحميل قائمة المعلمين');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل قائمة المعلمين';
+      toast.error(message);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchParents = async () => {
     try {
       console.log('🔄 Fetching parents...');
       
-      const response = await fetch('http://localhost:5000/api/chat/users', {
-        credentials: 'include'
-      });
+      const response = await api.get('/api/chat/users');
       
-      if (response.ok) {
-        const data = await response.json();
-        const parentsList = data.data?.users?.filter((user: User) => user.role === 'parent') || [];
+      if (response.data.status === 'success') {
+        const parentsList = response.data.data?.users?.filter((user: User) => user.role === 'parent') || [];
         console.log('✅ Parents loaded:', parentsList.length);
         setParents(parentsList);
       } else {
-        console.error('❌ Failed to fetch parents');
         toast.error('فشل في تحميل قائمة أولياء الأمور');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching parents:', error);
-      toast.error('حدث خطأ في تحميل قائمة أولياء الأمور');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل قائمة أولياء الأمور';
+      toast.error(message);
     }
   };
 
+  // ✅ Fixed: Use api instance
   const fetchMessages = async (userId: string) => {
     try {
       setMessagesLoading(true);
       console.log(`🔄 Fetching messages for user: ${userId}`);
       
-      const response = await fetch(`http://localhost:5000/api/chat/conversations/${userId}`, {
-        credentials: 'include'
-      });
+      const response = await api.get(`/api/chat/conversations/${userId}`);
+      console.log('📡 Messages response:', response.data);
       
-      console.log('📡 Messages response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Messages API response:', data);
-        
-        if (data.data && data.data.messages) {
-          console.log(`✅ Loaded ${data.data.messages.length} messages`);
-          setMessages(data.data.messages);
-          
-          // Debug: Log each message
-          data.data.messages.forEach((msg: Message, index: number) => {
-            console.log(`📝 Message ${index + 1}:`, {
-              id: msg._id,
-              sender: msg.sender?.username,
-              receiver: msg.receiver?.username,
-              message: msg.message
-            });
-          });
-        } else {
-          console.warn('⚠️ No messages data found');
-          setMessages([]);
-        }
+      if (response.data.status === 'success') {
+        const msgs = response.data.data?.messages || [];
+        console.log(`✅ Loaded ${msgs.length} messages`);
+        setMessages(msgs);
       } else {
-        console.error('❌ Failed to fetch messages');
-        const errorText = await response.text();
-        console.error('❌ Error response:', errorText);
-        toast.error('فشل في تحميل الرسائل');
+        console.warn('⚠️ No messages data found');
+        setMessages([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching messages:', error);
-      toast.error('حدث خطأ في تحميل الرسائل');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الرسائل';
+      toast.error(message);
     } finally {
       setMessagesLoading(false);
     }
@@ -356,6 +304,7 @@ export default function AdminChatsPage() {
     setSelectedUser(clickedUser);
   };
 
+  // ✅ Fixed: Use api instance
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) {
       toast.error('الرسالة مطلوبة');
@@ -377,37 +326,24 @@ export default function AdminChatsPage() {
       }
 
       // إرسال الرسالة إلى API
-      const response = await fetch('http://localhost:5000/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(messageData)
-      });
+      const response = await api.post('/api/chat/messages', messageData);
+      console.log('📡 Send message response:', response.data);
 
-      console.log('📡 Send message response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Message saved:', data);
-        
-        // إضافة الرسالة إلى القائمة مباشرة
-        if (data.data && data.data.message) {
-          setMessages(prev => [...prev, data.data.message]);
+      if (response.data.status === 'success') {
+        if (response.data.data && response.data.data.message) {
+          setMessages(prev => [...prev, response.data.data.message]);
         }
         
         setNewMessage('');
         fetchConversations();
         toast.success('تم إرسال الرسالة');
       } else {
-        const errorData = await response.json();
-        console.error('❌ Failed to send message:', errorData);
-        toast.error(errorData.message || 'حدث خطأ في إرسال الرسالة');
+        toast.error(response.data.message || 'حدث خطأ في إرسال الرسالة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error sending message:', error);
-      toast.error('حدث خطأ في إرسال الرسالة');
+      const message = error.response?.data?.message || 'حدث خطأ في إرسال الرسالة';
+      toast.error(message);
     }
   };
 
@@ -450,16 +386,14 @@ export default function AdminChatsPage() {
     }
   };
 
+  // ✅ Fixed: Use api instance
   const deleteConversation = async (userId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه المحادثة؟')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/chat/conversations/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      const response = await api.delete(`/api/chat/conversations/${userId}`);
 
-      if (response.ok) {
+      if (response.data.status === 'success') {
         toast.success('تم حذف المحادثة بنجاح');
         setConversations(prev => prev.filter(conv => 
           !conv.participants.some(p => p._id === userId)
@@ -471,9 +405,10 @@ export default function AdminChatsPage() {
       } else {
         toast.error('حدث خطأ في حذف المحادثة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting conversation:', error);
-      toast.error('حدث خطأ في حذف المحادثة');
+      const message = error.response?.data?.message || 'حدث خطأ في حذف المحادثة';
+      toast.error(message);
     }
   };
 
@@ -558,62 +493,6 @@ export default function AdminChatsPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('ar-EG', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch (error) {
-      return 'تاريخ غير معروف';
-    }
-  };
-
-  // // Temporary test function - remove after debugging
-  // const testMessagesDisplay = () => {
-  //   if (!selectedUser) {
-  //     toast.error('اختر مستخدم أولاً');
-  //     return;
-  //   }
-
-  //   const testMessages: Message[] = [
-  //     {
-  //       _id: 'test-1',
-  //       sender: { 
-  //         _id: user._id, 
-  //         username: user.username, 
-  //         role: user.role,
-  //         email: user.email
-  //       },
-  //       receiver: selectedUser,
-  //       message: 'هذه رسالة اختبار من المدير',
-  //       messageType: 'text',
-  //       isRead: true,
-  //       createdAt: new Date().toISOString()
-  //     },
-  //     {
-  //       _id: 'test-2', 
-  //       sender: selectedUser,
-  //       receiver: { 
-  //         _id: user._id, 
-  //         username: user.username, 
-  //         role: user.role,
-  //         email: user.email
-  //       },
-  //       message: 'هذه رسالة اختبار من المستخدم',
-  //       messageType: 'text',
-  //       isRead: true,
-  //       createdAt: new Date().toISOString()
-  //     }
-  //   ];
-    
-  //   setMessages(testMessages);
-  //   console.log('🧪 Test messages set:', testMessages);
-  //   toast.success('تم تحميل رسائل الاختبار');
-  // };
-
   if (!user || user.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -642,20 +521,8 @@ export default function AdminChatsPage() {
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
-            {/* Temporary test button - remove in production */}
-            {/* <Button
-              variant="outline"
-              size="sm"
-              onClick={testMessagesDisplay}
-              className="text-xs"
-            >
-              اختبار الرسائل
-            </Button> */}
           </div>
           <p className="text-gray-600">التواصل مع الطلاب والمعلمين وأولياء الأمور في المدرسة</p>
-          <div className="mt-2 text-sm text-gray-500">
-            {/* <p>المستخدم: {user.username} | الدور: {getRoleDisplay(user)}</p> */}
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -695,7 +562,7 @@ export default function AdminChatsPage() {
                   onClick={() => setActiveSection('students')}
                 >
                   <GraduationCap className="h-3 w-3 ml-1" />
-                  الطلاب ({students.length})
+                  طلاب ({students.length})
                 </Button>
                 <Button
                   variant={activeSection === 'teachers' ? 'default' : 'ghost'}
@@ -703,7 +570,7 @@ export default function AdminChatsPage() {
                   onClick={() => setActiveSection('teachers')}
                 >
                   <User className="h-3 w-3 ml-1" />
-                  المعلمون ({teachers.length})
+                  معلمون ({teachers.length})
                 </Button>
                 <Button
                   variant={activeSection === 'parents' ? 'default' : 'ghost'}
@@ -711,7 +578,7 @@ export default function AdminChatsPage() {
                   onClick={() => setActiveSection('parents')}
                 >
                   <Home className="h-3 w-3 ml-1" />
-                  أولياء الأمور ({parents.length})
+                  أولياء ({parents.length})
                 </Button>
               </div>
 
@@ -946,11 +813,6 @@ export default function AdminChatsPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Debug info - remove in production */}
-                        <div className="text-center text-xs text-gray-400 bg-blue-50 p-2 rounded">
-                          عرض {messages.length} رسالة في هذه المحادثة
-                        </div>
-
                         {messages.map((message, index) => {
                           const isOwnMessage = message.sender._id === user._id;
                           
@@ -962,7 +824,6 @@ export default function AdminChatsPage() {
                               <div className={`flex gap-3 max-w-xs lg:max-w-md ${
                                 isOwnMessage ? 'flex-row-reverse' : 'flex-row'
                               }`}>
-                                {/* Show avatar only for received messages */}
                                 {!isOwnMessage && (
                                   <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
                                     <AvatarImage src={message.sender.profilePicture} />

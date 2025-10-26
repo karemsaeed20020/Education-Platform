@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/parent/admin-chat/page.jsx
 'use client';
 
@@ -15,19 +16,16 @@ import {
   Send, 
   Search,
   RefreshCw,
-  Home,
-  UserCheck,
-  Clock,
   Building,
-  Phone,
-  Mail,
   Shield,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import toast, { Toaster } from 'react-hot-toast';
 import io, { Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
+import { api } from '@/redux/slices/authSlice'; // ✅ Import axios instance
 
 interface User {
   _id: string;
@@ -60,7 +58,7 @@ interface Conversation {
 }
 
 export default function ParentAdminChatPage() {
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [admins, setAdmins] = useState<User[]>([]);
@@ -83,34 +81,39 @@ export default function ParentAdminChatPage() {
     }
   }, [user, router]);
 
+  // Socket initialization
   useEffect(() => {
-    if (!user) return;
+    if (!user || !token) return;
 
-    // Test if parent routes are working
-    testParentRoutes();
-
-    // تهيئة Socket connection
-    socketRef.current = io('http://localhost:5000', {
-      withCredentials: true
+    console.log('🔌 Initializing socket connection for parent...');
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
+      withCredentials: true,
+      auth: {
+        token: token
+      }
     });
 
-    // انضمام المستخدم إلى الغرفة
     if (user._id) {
       socketRef.current.emit('join', user._id);
       console.log('✅ Parent joined socket room:', user._id);
     }
 
-    // استماع للرسائل الجديدة
     socketRef.current.on('newMessage', (message: Message) => {
       console.log('📨 New message received:', message);
       
       if (selectedAdmin && 
           (message.sender._id === selectedAdmin._id || message.receiver._id === selectedAdmin._id)) {
         setMessages(prev => [...prev, message]);
-        toast.success('رسالة جديدة من الإدارة');
+        toast.success(`رسالة جديدة من ${message.sender.username}`);
       }
       
       fetchConversations();
+    });
+
+    socketRef.current.on('userTyping', (data) => {
+      if (data.userId === selectedAdmin?._id) {
+        setIsTyping(data.isTyping);
+      }
     });
 
     socketRef.current.on('connect_error', (error) => {
@@ -118,16 +121,22 @@ export default function ParentAdminChatPage() {
       toast.error('فشل الاتصال بالخادم');
     });
 
+    socketRef.current.on('connect', () => {
+      console.log('✅ Socket connected successfully');
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
+        console.log('🔌 Socket disconnected');
       }
     };
-  }, [user, selectedAdmin]);
+  }, [user, token, selectedAdmin]);
 
   // تحميل البيانات الأولية
   useEffect(() => {
     if (user && user.role === 'parent') {
+      console.log('🎯 Loading initial data for parent...');
       fetchConversations();
       fetchAdmins();
     }
@@ -136,7 +145,10 @@ export default function ParentAdminChatPage() {
   // عند تغيير الإداري المحدد، جلب الرسائل
   useEffect(() => {
     if (selectedAdmin) {
+      console.log('🎯 Selected admin changed, fetching messages...');
       fetchMessages(selectedAdmin._id);
+    } else {
+      setMessages([]);
     }
   }, [selectedAdmin]);
 
@@ -148,169 +160,212 @@ export default function ParentAdminChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const testParentRoutes = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/chat/parent/test', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      console.log('✅ Parent route test:', data);
-    } catch (error) {
-      console.error('❌ Parent route test failed:', error);
-      toast.error('خطأ في الاتصال بالخادم. جاري استخدام الطرق البديلة.');
-    }
-  };
-
+  // ✅ Fixed: Use api instance for conversations
   const fetchConversations = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching conversations...');
+      console.log('🔄 Fetching parent conversations...');
       
-      // Try the specific parent route first, then fall back to general conversations
-      let response = await fetch('http://localhost:5000/api/chat/parent/conversations', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        // Fall back to general conversations endpoint
-        console.log('🔄 Falling back to general conversations endpoint');
-        response = await fetch('http://localhost:5000/api/chat/conversations', {
-          credentials: 'include'
-        });
+      // Try multiple endpoints
+      const endpoints = [
+        '/api/chat/parent/conversations',
+        '/api/chat/conversations'
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`🔍 Trying endpoint: ${endpoint}`);
+          response = await api.get(endpoint);
+          console.log(`✅ Success with endpoint: ${endpoint}`, response.data);
+          break;
+        } catch (err: any) {
+          lastError = err;
+          console.log(`❌ Failed with endpoint: ${endpoint}`, err.response?.data);
+          continue;
+        }
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Conversations data:', data);
+
+      if (!response) {
+        throw new Error(lastError?.response?.data?.message || 'لا يمكن تحميل المحادثات');
+      }
+
+      if (response.data.status === 'success') {
+        const allConversations = response.data.data?.conversations || [];
         
-        // Filter conversations to only show admin conversations
-        const allConversations = data.data.conversations || [];
+        // Filter to show only conversations with admins
         const adminConversations = allConversations.filter((conv: Conversation) => 
           conv.participants.some(p => p._id !== user?._id && p.role === 'admin')
         );
         
         setConversations(adminConversations);
+        console.log('✅ Admin conversations loaded:', adminConversations.length);
       } else {
-        console.error('❌ Failed to fetch conversations');
-        toast.error('فشل في تحميل المحادثات');
+        throw new Error(response.data.message || 'فشل في تحميل المحادثات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching conversations:', error);
-      toast.error('حدث خطأ في تحميل المحادثات');
+      const message = error.response?.data?.message || error.message || 'حدث خطأ في تحميل المحادثات';
+      toast.error(message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // ✅ Fixed: Use api instance for admins
   const fetchAdmins = async () => {
     try {
+      setLoading(true);
       console.log('🔄 Fetching admins...');
       
-      // Try the specific parent route first, then fall back to general users endpoint
-      let response = await fetch('http://localhost:5000/api/chat/parent/admins', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        // Fall back to general users endpoint and filter admins
-        console.log('🔄 Falling back to general users endpoint');
-        response = await fetch('http://localhost:5000/api/chat/users', {
-          credentials: 'include'
-        });
+      // Try multiple endpoints
+      const endpoints = [
+        '/api/chat/parent/admins',
+        '/api/chat/users',
+        '/api/users/admins'
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`🔍 Trying endpoint: ${endpoint}`);
+          response = await api.get(endpoint);
+          console.log(`✅ Success with endpoint: ${endpoint}`, response.data);
+          break;
+        } catch (err: any) {
+          lastError = err;
+          console.log(`❌ Failed with endpoint: ${endpoint}`, err.response?.data);
+          continue;
+        }
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Admins data:', data);
-        
-        // Extract admins from response
-        let adminsList = [];
-        if (data.data.admins) {
-          adminsList = data.data.admins;
-        } else if (data.data.users) {
-          adminsList = data.data.users.filter((user: User) => user.role === 'admin');
+
+      if (!response) {
+        throw new Error(lastError?.response?.data?.message || 'لا يمكن تحميل قائمة الإدارة');
+      }
+
+      let adminsList: User[] = [];
+
+      if (response.data.status === 'success') {
+        // Extract admins from different response structures
+        if (response.data.data?.admins) {
+          adminsList = response.data.data.admins;
+        } else if (response.data.data?.users) {
+          adminsList = response.data.data.users.filter((user: User) => user.role === 'admin');
+        } else if (response.data.admins) {
+          adminsList = response.data.admins;
+        } else if (Array.isArray(response.data.data)) {
+          adminsList = response.data.data.filter((user: User) => user.role === 'admin');
         }
         
+        console.log('✅ Admins loaded:', adminsList.length);
         setAdmins(adminsList);
         
-        // إذا كان هناك إداريون، حدد الأول افتراضياً
+        // Auto-select first admin
         if (adminsList.length > 0 && !selectedAdmin) {
+          console.log('🚀 Auto-selecting first admin:', adminsList[0].username);
           setSelectedAdmin(adminsList[0]);
+        } else if (adminsList.length === 0) {
+          console.log('⚠️ No admins found!');
+          toast.error('لا توجد إدارة متاحة للدردشة حالياً');
         }
       } else {
-        console.error('❌ Failed to fetch admins');
-        toast.error('فشل في تحميل قائمة الإدارة');
+        throw new Error(response.data.message || 'فشل في تحميل قائمة الإدارة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error fetching admins:', error);
-      toast.error('حدث خطأ في تحميل قائمة الإدارة');
+      const message = error.response?.data?.message || error.message || 'حدث خطأ في تحميل قائمة الإدارة';
+      toast.error(message);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ✅ Fixed: Use api instance for messages
   const fetchMessages = async (userId: string) => {
     try {
       setMessagesLoading(true);
-      const response = await fetch(`http://localhost:5000/api/chat/conversations/${userId}`, {
-        credentials: 'include'
-      });
+      console.log(`🔄 Fetching messages for admin: ${userId}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data.data.messages || []);
+      const response = await api.get(`/api/chat/conversations/${userId}`);
+      console.log('📡 Messages response:', response.data);
+      
+      if (response.data.status === 'success') {
+        const msgs = response.data.data?.messages || [];
+        console.log(`✅ Loaded ${msgs.length} messages`);
+        setMessages(msgs);
       } else {
-        toast.error('فشل في تحميل الرسائل');
+        console.warn('⚠️ No messages data found');
+        setMessages([]);
       }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      toast.error('حدث خطأ في تحميل الرسائل');
+    } catch (error: any) {
+      console.error('❌ Error fetching messages:', error);
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الرسائل';
+      toast.error(message);
     } finally {
       setMessagesLoading(false);
     }
   };
 
+  const handleAdminClick = (admin: User) => {
+    console.log('👆 Admin clicked:', admin.username);
+    setSelectedAdmin(admin);
+  };
+
+  // ✅ Fixed: Use api instance for sending messages
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedAdmin) {
+      console.log('❌ Cannot send message - missing data');
       toast.error('الرسالة مطلوبة');
       return;
     }
 
     try {
+      console.log('📤 Sending message to admin:', selectedAdmin.username);
+
       const messageData = {
         receiverId: selectedAdmin._id,
         message: newMessage.trim()
       };
 
-      console.log('📤 Sending message:', messageData);
-
-      // إرسال الرسالة عبر Socket
+      // إرسال عبر Socket
       if (socketRef.current) {
         socketRef.current.emit('sendMessage', messageData);
+        console.log('✅ Message sent via socket');
       }
 
-      // إرسال الرسالة إلى API
-      const response = await fetch('http://localhost:5000/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(messageData)
-      });
+      // إرسال إلى API
+      const response = await api.post('/api/chat/messages', messageData);
+      console.log('📡 Send message response:', response.data);
 
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(prev => [...prev, data.data.message]);
+      if (response.data.status === 'success') {
+        if (response.data.data && response.data.data.message) {
+          setMessages(prev => [...prev, response.data.data.message]);
+        }
+        
         setNewMessage('');
         fetchConversations();
         toast.success('تم إرسال الرسالة');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message || 'حدث خطأ في إرسال الرسالة');
+        toast.error(response.data.message || 'حدث خطأ في إرسال الرسالة');
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error('حدث خطأ في إرسال الرسالة');
+    } catch (error: any) {
+      console.error('❌ Error sending message:', error);
+      const message = error.response?.data?.message || 'حدث خطأ في إرسال الرسالة';
+      toast.error(message);
+    }
+  };
+
+  const handleTyping = (isTyping: boolean) => {
+    if (socketRef.current && selectedAdmin) {
+      socketRef.current.emit('typing', {
+        receiverId: selectedAdmin._id,
+        isTyping
+      });
     }
   };
 
@@ -318,6 +373,17 @@ export default function ParentAdminChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+      handleTyping(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    
+    if (e.target.value.trim()) {
+      handleTyping(true);
+    } else {
+      handleTyping(false);
     }
   };
 
@@ -336,35 +402,26 @@ export default function ParentAdminChatPage() {
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('ar-EG', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(dateString).toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return '--:--';
+    }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ar-EG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const getLastMessageTime = (conversation: Conversation) => {
-    if (!conversation.lastMessage) return '';
-    
-    const messageDate = new Date(conversation.lastMessage.createdAt);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - messageDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) {
-      return 'أمس';
-    } else if (diffDays > 1) {
-      return `${diffDays} يوم`;
-    } else {
-      return formatTime(conversation.lastMessage.createdAt);
+    try {
+      return new Date(dateString).toLocaleDateString('ar-EG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'تاريخ غير معروف';
     }
   };
 
@@ -395,16 +452,7 @@ export default function ParentAdminChatPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-4">
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-        }}
-      />
+      <Toaster position="top-center" />
       
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -432,7 +480,7 @@ export default function ParentAdminChatPage() {
           
           <div className="inline-flex items-center gap-4 px-6 py-3 bg-white rounded-full shadow-sm">
             <div className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-purple-500" />
+              <Users className="h-4 w-4 text-purple-500" />
               <span className="text-sm text-gray-600">الإداريون: {admins.length}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -449,7 +497,7 @@ export default function ParentAdminChatPage() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm text-gray-800">
-                  <UserCheck className="h-4 w-4 text-purple-600" />
+                  <Users className="h-4 w-4 text-purple-600" />
                   الإداريون
                 </CardTitle>
               </CardHeader>
@@ -468,7 +516,7 @@ export default function ParentAdminChatPage() {
                           ? 'bg-purple-50 border-purple-300 shadow-md' 
                           : 'bg-white border-gray-200 hover:border-purple-200 hover:shadow-sm'
                       }`}
-                      onClick={() => setSelectedAdmin(admin)}
+                      onClick={() => handleAdminClick(admin)}
                     >
                       <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
                         <AvatarImage src={admin.profilePicture} />
@@ -514,7 +562,7 @@ export default function ParentAdminChatPage() {
                               ? 'bg-blue-50 border border-blue-200' 
                               : 'bg-gray-50 hover:bg-gray-100'
                           }`}
-                          onClick={() => setSelectedAdmin(adminUser)}
+                          onClick={() => handleAdminClick(adminUser)}
                         >
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={adminUser.profilePicture} />
@@ -528,7 +576,7 @@ export default function ParentAdminChatPage() {
                                 {adminUser.username}
                               </h5>
                               <span className="text-xs text-gray-500">
-                                {getLastMessageTime(conversation)}
+                                {conversation.lastMessage ? formatTime(conversation.lastMessage.createdAt) : ''}
                               </span>
                             </div>
                             <p className="text-xs text-gray-500 truncate">
@@ -638,7 +686,7 @@ export default function ParentAdminChatPage() {
                     <div className="space-y-3">
                       <Textarea
                         value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
+                        onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
                         placeholder="اكتب رسالتك لإدارة المدرسة هنا..."
                         className="min-h-[80px] resize-none rounded-xl border-gray-300 focus:border-blue-500"

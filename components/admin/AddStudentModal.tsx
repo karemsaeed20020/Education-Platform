@@ -67,12 +67,22 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
 
   const onSubmit = async (data: StudentForm) => {
     try {
+      console.log('📝 Adding new student:', { username: data.username, email: data.email });
+      
       const response = await api.post('/api/users/students', data);
 
-      if (response.data.success) {
+      console.log('✅ Student added successfully:', response.data);
+
+      if (response.data.success || response.status === 201) {
         toast.success('✅ تم إضافة الطالب بنجاح');
+        
+        // ✅ Refresh the students list immediately
         onStudentAdded();
+        
+        // Reset form
         reset();
+        
+        // Close modal
         onClose();
       } else {
         throw new Error(response.data.message || 'فشل إضافة الطالب');
@@ -80,7 +90,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
     } catch (err: any) {
       console.error('❌ Add student error:', err);
       const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء إضافة الطالب';
-      toast.success(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -102,7 +112,8 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
         {/* Close button (top-left for RTL) */}
         <button
           onClick={handleClose}
-          className="absolute top-3 left-3 text-gray-500 hover:text-red-600 transition"
+          disabled={isSubmitting}
+          className="absolute top-3 left-3 text-gray-500 hover:text-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <X className="w-5 h-5" />
         </button>
@@ -120,21 +131,37 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
           {/* Username */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="username" className="font-medium text-gray-700">اسم المستخدم *</Label>
-            <Input id="username" {...register('username')} placeholder="أدخل اسم المستخدم" />
+            <Input 
+              id="username" 
+              {...register('username')} 
+              placeholder="أدخل اسم المستخدم" 
+              disabled={isSubmitting}
+            />
             {errors.username && <p className="text-sm text-red-600">{errors.username.message}</p>}
           </div>
 
           {/* Email */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="email" className="font-medium text-gray-700">البريد الإلكتروني *</Label>
-            <Input id="email" type="email" {...register('email')} placeholder="أدخل البريد الإلكتروني" />
+            <Input 
+              id="email" 
+              type="email" 
+              {...register('email')} 
+              placeholder="أدخل البريد الإلكتروني" 
+              disabled={isSubmitting}
+            />
             {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
           </div>
 
           {/* Phone */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="phone" className="font-medium text-gray-700">رقم الهاتف *</Label>
-            <Input id="phone" {...register('phone')} placeholder="مثال: 01012345678" />
+            <Input 
+              id="phone" 
+              {...register('phone')} 
+              placeholder="مثال: 01012345678" 
+              disabled={isSubmitting}
+            />
             {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
             <p className="text-xs text-gray-500">يجب أن يبدأ الرقم بـ 010، 011، 012، أو 015</p>
           </div>
@@ -142,7 +169,11 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
           {/* Grade */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="grade" className="font-medium text-gray-700">الصف الدراسي</Label>
-            <Select defaultValue="غير محدد" onValueChange={(val) => setValue('grade', val)}>
+            <Select 
+              defaultValue="غير محدد" 
+              onValueChange={(val) => setValue('grade', val)}
+              disabled={isSubmitting}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="اختر الصف الدراسي" />
               </SelectTrigger>
@@ -157,14 +188,26 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onSt
           {/* Password */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="password" className="font-medium text-gray-700">كلمة المرور *</Label>
-            <Input id="password" type="password" {...register('password')} placeholder="أدخل كلمة المرور" />
+            <Input 
+              id="password" 
+              type="password" 
+              {...register('password')} 
+              placeholder="أدخل كلمة المرور" 
+              disabled={isSubmitting}
+            />
             {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
           </div>
 
           {/* Confirm Password */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="confirmPassword" className="font-medium text-gray-700">تأكيد كلمة المرور *</Label>
-            <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="أعد إدخال كلمة المرور" />
+            <Input 
+              id="confirmPassword" 
+              type="password" 
+              {...register('confirmPassword')} 
+              placeholder="أعد إدخال كلمة المرور" 
+              disabled={isSubmitting}
+            />
             {errors.confirmPassword && (
               <p className="text-sm text-red-600">{errors.confirmPassword.message}</p>
             )}

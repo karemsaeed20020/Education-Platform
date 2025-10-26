@@ -71,45 +71,49 @@ export default function StudentHomeworkPage() {
     }
   };
 
-  const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
-    try {
-      // افتح الرابط مباشرة - سيتم التحميل تلقائياً
-      window.open(
-        `http://localhost:5000/api/homework/${homeworkId}/download/${fileIndex}`,
-        '_blank'
-      );
-      toast.success('تم بدء التحميل');
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('حدث خطأ أثناء تحميل الملف');
-    }
-  };
 
-  // Alternative download using api
-  const downloadFileWithApi = async (homeworkId: string, fileIndex: number, fileName: string) => {
-    try {
-      const response = await api.get(`/api/homework/${homeworkId}/download/${fileIndex}`, {
-        responseType: 'blob'
-      });
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('تم تحميل الملف بنجاح');
-    } catch (error: any) {
-      console.error('Download error:', error);
-      const message = error.response?.data?.message || 'حدث خطأ أثناء تحميل الملف';
-      toast.error(message);
-    }
-  };
-
+ const downloadFile = async (homeworkId: string, fileIndex: number, fileName: string) => {
+     try {
+       // Use api instance for download
+       const response = await api.get(
+         `/api/homework/${homeworkId}/download/${fileIndex}`,
+         {
+           responseType: 'blob', // Important for file downloads
+         }
+       );
+ 
+       // Create a blob URL and trigger download
+       const blob = new Blob([response.data]);
+       const url = window.URL.createObjectURL(blob);
+       const link = document.createElement('a');
+       link.href = url;
+       link.setAttribute('download', fileName);
+       document.body.appendChild(link);
+       link.click();
+       
+       // Clean up
+       link.remove();
+       window.URL.revokeObjectURL(url);
+       
+       toast.success('تم تحميل الملف بنجاح');
+     } catch (error) {
+       console.error('Download error:', error);
+       toast.error('حدث خطأ أثناء تحميل الملف');
+     }
+   };
+ 
+   // Alternative download method that opens in new tab (similar to your original approach)
+   const downloadFileAlternative = (homeworkId: string, fileIndex: number, fileName: string) => {
+     try {
+       // Get the full URL from the api instance
+       const downloadUrl = `${api.defaults.baseURL}/api/homework/${homeworkId}/download/${fileIndex}`;
+       window.open(downloadUrl, '_blank');
+       toast.success('تم بدء التحميل');
+     } catch (error) {
+       console.error('Download error:', error);
+       toast.error('حدث خطأ أثناء تحميل الملف');
+     }
+   };
   const filteredHomeworks = homeworks.filter(hw => {
     const matchesSearch = hw.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGrade = gradeFilter === 'all' || hw.grade === gradeFilter;

@@ -14,10 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Plus, 
   Search, 
-  FileText, 
   Edit, 
   Trash2, 
-  Eye, 
   Download,
   MoreVertical,
   Send,
@@ -32,7 +30,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import toast, { Toaster } from 'react-hot-toast';
-import { api } from '@/redux/slices/authSlice'; // Import the api instance
+import { api } from '@/redux/slices/authSlice';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 
 interface Homework {
   _id: string;
@@ -55,6 +55,7 @@ interface Homework {
 }
 
 export default function HomeworkManagementPage() {
+  const { token } = useSelector((state: RootState) => state.auth);
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,8 +100,6 @@ export default function HomeworkManagementPage() {
       
       if (error.response?.status === 401) {
         toast.error('يرجى تسجيل الدخول مرة أخرى');
-        // يمكنك إضافة redirect إلى login هنا إذا أردت
-        // window.location.href = '/login';
       } else {
         toast.error(message);
       }
@@ -258,41 +257,47 @@ export default function HomeworkManagementPage() {
     }
   };
 
-  // const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
-  //   try {
-  //     // استخدم api instance للتحميل أيضًا
-  //     window.open(
-  //       `${process.env.NEXT_PUBLIC_API_URL}/api/homework/${homeworkId}/download/${fileIndex}`,
-  //       '_blank'
-  //     );
-  //     toast.success('تم بدء التحميل');
-  //   } catch (error) {
-  //     console.error('Download error:', error);
-  //     toast.error('حدث خطأ أثناء تحميل الملف');
-  //   }
-  // };
-  // في HomeworkManagementPage.tsx
-const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) => {
-  try {
-    // استخدم route التحميل بدون مصادقة
-    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/homework/${homeworkId}/direct-download/${fileIndex}`;
-    
-    console.log('📥 Download URL:', downloadUrl);
-    
-    // افتح في نافذة جديدة
-    const newWindow = window.open(downloadUrl, '_blank');
-    
-    if (!newWindow) {
-      toast.error('يرجى السماح بالنوافذ المنبثقة للتحميل');
-      return;
+  // ✅ Fixed download function with token
+  const downloadFile = async (homeworkId: string, fileIndex: number, fileName: string) => {
+    try {
+      console.log('📥 Downloading file:', { homeworkId, fileIndex, fileName });
+      
+      if (!token) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+
+      // Use api instance to get the file with authentication
+      const response = await api.get(
+        `/api/homework/${homeworkId}/download/${fileIndex}`,
+        {
+          responseType: 'blob', // Important for file download
+        }
+      );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('تم تحميل الملف بنجاح');
+    } catch (error: any) {
+      console.error('❌ Download error:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء تحميل الملف';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     }
-    
-    toast.success('تم بدء التحميل');
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('حدث خطأ أثناء تحميل الملف');
-  }
-};
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -331,7 +336,6 @@ const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) =
         }}
       />
       
-      {/* باقي الكود يبقى كما هو بدون تغيير */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">إدارة الواجبات</h1>
@@ -432,7 +436,6 @@ const downloadFile = (homeworkId: string, fileIndex: number, fileName: string) =
         </Dialog>
       </div>
 
-      {/* باقي الكود يبقى كما هو */}
       {/* Filters */}
       <Card>
         <CardContent className="p-4">

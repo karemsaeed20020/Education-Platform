@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Plus, Search, FileText, Download, Edit, Trash2, Star, BookOpen, Megaphone, Lightbulb, RefreshCw } from 'lucide-react';
 import { api } from '@/redux/slices/authSlice'; // Import the api instance
 import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 
 interface EducationalContent {
   _id: string;
@@ -35,6 +37,7 @@ interface EducationalContent {
 }
 
 export default function EducationalContentPage() {
+  const { token } = useSelector((state: RootState) => state.auth);
   const [contents, setContents] = useState<EducationalContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,15 +148,88 @@ export default function EducationalContentPage() {
     }
   };
 
-  const downloadFile = async (contentId: string, fileIndex: number) => {
+  // ✅ Fixed download function with token
+    const downloadFile = async (homeworkId: string, fileIndex: number, fileName: string) => {
     try {
-      window.open(`http://localhost:5000/api/educational-content/${contentId}/download/${fileIndex}`, '_blank');
-      toast.success('تم بدء تحميل الملف');
+      console.log('📥 Downloading file:', { homeworkId, fileIndex, fileName });
+      
+      if (!token) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+
+      // Use api instance to get the file with authentication
+      const response = await api.get(
+        `/api/homework/${homeworkId}/download/${fileIndex}`,
+        {
+          responseType: 'blob', // Important for file download
+        }
+      );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('تم تحميل الملف بنجاح');
     } catch (error: any) {
-      console.error('Error downloading file:', error);
-      toast.error('حدث خطأ أثناء تحميل الملف');
+      console.error('❌ Download error:', error);
+      const message = error.response?.data?.message || 'حدث خطأ أثناء تحميل الملف';
+      
+      if (error.response?.status === 401) {
+        toast.error('يرجى تسجيل الدخول مرة أخرى');
+      } else {
+        toast.error(message);
+      }
     }
   };
+  // // ✅ Fixed download function for educational content - same as homework page
+  // const downloadFile = async (contentId: string, fileIndex: number, fileName: string) => {
+  //   try {
+  //     console.log('📥 Downloading educational content file:', { contentId, fileIndex, fileName });
+      
+  //     if (!token) {
+  //       toast.error('يرجى تسجيل الدخول مرة أخرى');
+  //       return;
+  //     }
+
+  //     // Use api instance to get the file with authentication
+  //     const response = await api.get(
+  //       `/api/educational-content/${contentId}/download/${fileIndex}`,
+  //       {
+  //         responseType: 'blob', // Important for file download
+  //       }
+  //     );
+
+  //     // Create a blob URL and trigger download
+  //     const blob = new Blob([response.data]);
+  //     const url = window.URL.createObjectURL(blob);
+  //     const link = document.createElement('a');
+  //     link.href = url;
+  //     link.download = fileName;
+  //     document.body.appendChild(link);
+  //     link.click();
+  //     document.body.removeChild(link);
+  //     window.URL.revokeObjectURL(url);
+
+  //     toast.success('تم تحميل الملف بنجاح');
+  //   } catch (error: any) {
+  //     console.error('❌ Download error:', error);
+  //     const message = error.response?.data?.message || 'حدث خطأ أثناء تحميل الملف';
+      
+  //     if (error.response?.status === 401) {
+  //       toast.error('يرجى تسجيل الدخول مرة أخرى');
+  //     } else {
+  //       toast.error(message);
+  //     }
+  //   }
+  // };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -472,7 +548,7 @@ export default function EducationalContentPage() {
                                 variant="outline"
                                 size="sm"
                                 className="text-xs"
-                                onClick={() => downloadFile(content._id, index)}
+                                onClick={() => downloadFile(content._id, index, file.originalName)}
                               >
                                 <Download className="h-3 w-3 ml-1" />
                                 {file.originalName}

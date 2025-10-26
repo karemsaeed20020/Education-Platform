@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/courses/[id]/page.tsx
 'use client';
 
@@ -15,6 +16,9 @@ import { Progress } from '@/components/ui/progress';
 import { Play, Clock, Users, BookOpen, ShoppingCart, Star, CheckCircle, Loader2, ArrowLeft, Lock, FileText, Award, Edit, Trash2, MessageCircle, Share, Heart } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
+import { api } from '@/redux/slices/authSlice';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 
 interface Video {
   _id: string;
@@ -23,6 +27,8 @@ interface Video {
   duration: number;
   isPreview: boolean;
   order: number;
+  videoUrl?: string;
+  thumbnail?: string;
 }
 
 interface Chapter {
@@ -38,6 +44,8 @@ interface Instructor {
   username: string;
   profilePicture?: string;
   bio?: string;
+  email?: string;
+  specialization?: string;
 }
 
 interface Course {
@@ -66,6 +74,7 @@ interface Course {
   requirements: string[];
   learningOutcomes: string[];
   createdAt: string;
+  updatedAt: string;
 }
 
 interface Review {
@@ -79,10 +88,13 @@ interface Review {
   comment: string;
   isVerified: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function CourseDetailsPage() {
   const params = useParams();
+  const courseId = params.id as string;
+  
   const [course, setCourse] = useState<Course | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userReview, setUserReview] = useState<Review | null>(null);
@@ -98,10 +110,10 @@ export default function CourseDetailsPage() {
   const [isLiked, setIsLiked] = useState(false);
 
   useEffect(() => {
-    if (params.id) {
+    if (courseId) {
       fetchCourse();
     }
-  }, [params.id]);
+  }, [courseId]);
 
   useEffect(() => {
     if (course && activeTab === 'reviews') {
@@ -112,20 +124,18 @@ export default function CourseDetailsPage() {
 
   const fetchCourse = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/courses/${params.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setCourse(data.data.course);
-        } else {
-          toast.error('فشل في تحميل الكورس');
-        }
+      setLoading(true);
+      const response = await api.get(`/api/courses/${courseId}`);
+      
+      if (response.data.status === 'success') {
+        setCourse(response.data.data.course);
       } else {
         toast.error('فشل في تحميل الكورس');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching course:', error);
-      toast.error('حدث خطأ في تحميل الكورس');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في تحميل الكورس';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -134,15 +144,14 @@ export default function CourseDetailsPage() {
   const fetchReviews = async () => {
     setReviewsLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/reviews/course/${params.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          setReviews(data.data.reviews);
-        }
+      const response = await api.get(`/api/reviews/course/${courseId}`);
+      if (response.data.status === 'success') {
+        setReviews(response.data.data.reviews);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching reviews:', error);
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في تحميل التقييمات';
+      toast.error(errorMessage);
     } finally {
       setReviewsLoading(false);
     }
@@ -150,22 +159,24 @@ export default function CourseDetailsPage() {
 
   const fetchUserReview = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/reviews/my-review/${params.id}`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUserReview(data.data.review);
-        if (data.data.review) {
+      const response = await api.get(`/api/reviews/my-review/${courseId}`);
+      if (response.data.status === 'success') {
+        setUserReview(response.data.data.review);
+        if (response.data.data.review) {
           setReviewForm({
-            rating: data.data.review.rating,
-            comment: data.data.review.comment,
+            rating: response.data.data.review.rating,
+            comment: response.data.data.review.comment,
             isSubmitting: false
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching user review:', error);
+      // Don't show error if user doesn't have a review
+      if (error.response?.status !== 404) {
+        const errorMessage = error.response?.data?.message || 'حدث خطأ في تحميل تقييمك';
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -174,29 +185,17 @@ export default function CourseDetailsPage() {
 
     setAddingToCart(true);
     try {
-      const response = await fetch('http://localhost:5000/api/cart/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ courseId: course._id }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          toast.success('تم إضافة الكورس إلى السلة بنجاح');
-        } else {
-          toast.error(data.message || 'فشل في إضافة الكورس إلى السلة');
-        }
+      const response = await api.post('/api/cart/add', { courseId: course._id });
+      
+      if (response.data.status === 'success') {
+        toast.success('تم إضافة الكورس إلى السلة بنجاح');
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'فشل في إضافة الكورس إلى السلة');
+        toast.error(response.data.message || 'فشل في إضافة الكورس إلى السلة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding to cart:', error);
-      toast.error('حدث خطأ في إضافة الكورس إلى السلة');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في إضافة الكورس إلى السلة';
+      toast.error(errorMessage);
     } finally {
       setAddingToCart(false);
     }
@@ -214,37 +213,33 @@ export default function CourseDetailsPage() {
 
     try {
       const url = userReview 
-        ? `http://localhost:5000/api/reviews/${userReview._id}`
-        : 'http://localhost:5000/api/reviews';
+        ? `/api/reviews/${userReview._id}`
+        : '/api/reviews';
       
       const method = userReview ? 'PATCH' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await api({
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          courseId: params.id,
+        url,
+        data: {
+          courseId: courseId,
           rating: reviewForm.rating,
           comment: reviewForm.comment.trim()
-        }),
+        }
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response.data.status === 'success') {
         toast.success(userReview ? 'تم تحديث التقييم بنجاح' : 'تم إضافة التقييم بنجاح');
-        setUserReview(data.data.review);
+        setUserReview(response.data.data.review);
         fetchReviews();
         fetchCourse();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'فشل في إضافة التقييم');
+        toast.error(response.data.message || 'فشل في إضافة التقييم');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting review:', error);
-      toast.error('حدث خطأ في إضافة التقييم');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في إضافة التقييم';
+      toast.error(errorMessage);
     } finally {
       setReviewForm(prev => ({ ...prev, isSubmitting: false }));
     }
@@ -256,12 +251,9 @@ export default function CourseDetailsPage() {
     if (!confirm('هل أنت متأكد من حذف التقييم؟')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/reviews/${userReview._id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
+      const response = await api.delete(`/api/reviews/${userReview._id}`);
+      
+      if (response.data.status === 'success') {
         toast.success('تم حذف التقييم بنجاح');
         setUserReview(null);
         setReviewForm({ rating: 0, comment: '', isSubmitting: false });
@@ -270,9 +262,10 @@ export default function CourseDetailsPage() {
       } else {
         toast.error('فشل في حذف التقييم');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting review:', error);
-      toast.error('حدث خطأ في حذف التقييم');
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في حذف التقييم';
+      toast.error(errorMessage);
     }
   };
 
@@ -280,17 +273,16 @@ export default function CourseDetailsPage() {
     if (!course) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/courses/${course._id}/like`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
+      const response = await api.post(`/api/courses/${course._id}/like`);
+      
+      if (response.data.status === 'success') {
         setIsLiked(!isLiked);
         toast.success(isLiked ? 'تم إزالة الإعجاب' : 'تم إضافة الإعجاب');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error liking course:', error);
+      const errorMessage = error.response?.data?.message || 'حدث خطأ في إضافة الإعجاب';
+      toast.error(errorMessage);
     }
   };
 
@@ -398,6 +390,7 @@ export default function CourseDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      <Navbar />
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="mb-8">
@@ -936,6 +929,7 @@ export default function CourseDetailsPage() {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

@@ -22,27 +22,6 @@ interface ReplyData {
   message: string;
 }
 
-// 🔹 دوال API لرسائل التواصل باستخدام axios
-const contactApi = {
-  // جلب جميع رسائل التواصل
-  getContacts: async () => {
-    const response = await api.get('/api/contact');
-    return response.data;
-  },
-
-  // إرسال رد
-  sendReply: async (replyData: any) => {
-    const response = await api.post('/api/contact/reply', replyData);
-    return response.data;
-  },
-
-  // حذف رسالة
-  deleteContact: async (contactId: string) => {
-    const response = await api.delete(`/api/contact/${contactId}`);
-    return response.data;
-  }
-};
-
 const ContactMessagesPage = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,22 +33,32 @@ const ContactMessagesPage = () => {
   });
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  // ✅ تحميل الرسائل باستخدام axios
+  // ✅ تحميل الرسائل
   const fetchContacts = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // ✅ استخدام axios API بدلاً من fetch
-      const data = await contactApi.getContacts();
       
-      setContacts(data.data || []);
-      toast.success('تم تحميل الرسائل بنجاح');
+      console.log('🔄 Fetching contact messages...');
+
+      const response = await api.get('/api/contact');
+      
+      console.log('📡 Contact response:', response.data);
+      
+      // ✅ التعديل: استخدام `success` بدلًا من `status`
+      if (response.data.success === true) {
+        const contactsList = response.data.data || [];
+        setContacts(contactsList);
+        console.log('✅ Loaded contacts:', contactsList.length);
+        toast.success(`تم تحميل ${contactsList.length} رسالة`);
+      } else {
+        throw new Error(response.data.message || 'فشل في تحميل الرسائل');
+      }
     } catch (err: any) {
-      console.error('Fetch error:', err);
-      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء تحميل الرسائل';
+      console.error('❌ Fetch error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء تحميل الرسائل';
       setError(errorMessage);
-      toast.error('فشل تحميل رسائل التواصل');
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -97,7 +86,7 @@ const ContactMessagesPage = () => {
     });
   };
 
-  // ✅ إرسال الرد باستخدام axios
+  // ✅ إرسال الرد
   const handleSendReply = async (contactId: string, contactEmail: string) => {
     if (!replyData.message.trim()) {
       toast.error('يرجى كتابة رسالة الرد');
@@ -106,60 +95,68 @@ const ContactMessagesPage = () => {
 
     try {
       setReplying(contactId + '-sending');
+      
+      console.log('📤 Sending reply to:', contactEmail);
 
-      // ✅ استخدام axios API بدلاً من fetch
-      const data = await contactApi.sendReply({
+      const response = await api.post('/api/contact/reply', {
         contactId,
         to: contactEmail,
         subject: replyData.subject,
         message: replyData.message
       });
 
-      if (data.status === 'success') {
-        // تحديث حالة الرسالة إلى "تم الرد"
+      console.log('📡 Reply response:', response.data);
+
+      // ✅ التعديل: استخدام `success` بدلًا من `status`
+      if (response.data.success === true) {
         setContacts(prev => prev.map(contact =>
           contact._id === contactId
             ? { ...contact, replied: true }
             : contact
         ));
 
-        toast.success('تم إرسال الرد بنجاح ✅');
+        toast.success('✅ تم إرسال الرد بنجاح');
         closeReplyForm();
+        console.log('✅ Reply sent successfully');
       } else {
-        throw new Error(data.message || 'فشل في إرسال الرد');
+        throw new Error(response.data.message || 'فشل في إرسال الرد');
       }
 
     } catch (err: any) {
-      console.error('Reply error:', err);
-      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء إرسال الرد';
+      console.error('❌ Reply error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء إرسال الرد';
       toast.error(errorMessage);
     } finally {
       setReplying(null);
     }
   };
 
-  // ✅ حذف رسالة باستخدام axios
+  // ✅ حذف رسالة
   const handleDeleteMessage = async (contactId: string) => {
     const confirmed = window.confirm('هل أنت متأكد من حذف هذه الرسالة؟');
     if (!confirmed) return;
 
     try {
       setDeleting(contactId);
+      
+      console.log('🗑️ Deleting contact:', contactId);
 
-      // ✅ استخدام axios API بدلاً من fetch
-      const data = await contactApi.deleteContact(contactId);
+      const response = await api.delete(`/api/contact/${contactId}`);
+      
+      console.log('📡 Delete response:', response.data);
 
-      if (data.status === 'success') {
-        // إزالة الرسالة من القائمة
+      // ✅ التعديل: استخدام `success` بدلًا من `status`
+      if (response.data.success === true) {
         setContacts(prev => prev.filter(contact => contact._id !== contactId));
-        toast.success('تم حذف الرسالة بنجاح ✅');
+        toast.success('✅ تم حذف الرسالة بنجاح');
+        console.log('✅ Contact deleted successfully');
       } else {
-        throw new Error(data.message || 'فشل في حذف الرسالة');
+        throw new Error(response.data.message || 'فشل في حذف الرسالة');
       }
 
     } catch (err: any) {
-      console.error('Delete error:', err);
-      const errorMessage = err.response?.data?.message || 'حدث خطأ أثناء حذف الرسالة';
+      console.error('❌ Delete error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'حدث خطأ أثناء حذف الرسالة';
       toast.error(errorMessage);
     } finally {
       setDeleting(null);
@@ -168,10 +165,24 @@ const ContactMessagesPage = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8" dir="rtl">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gray-900">
-        <Mail className="w-6 h-6 text-blue-600" />
-        رسائل التواصل
-      </h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2 text-gray-900">
+          <Mail className="w-6 h-6 text-blue-600" />
+          رسائل التواصل
+        </h1>
+        <Button
+          variant="outline"
+          onClick={fetchContacts}
+          disabled={loading}
+        >
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin ml-2" />
+          ) : (
+            <Mail className="w-4 h-4 ml-2" />
+          )}
+          تحديث
+        </Button>
+      </div>
 
       {/* إحصائيات سريعة */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -208,10 +219,18 @@ const ContactMessagesPage = () => {
       )}
 
       {/* خطأ */}
-      {error && (
+      {error && !loading && (
         <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 mb-6">
           <AlertCircle className="w-5 h-5" />
           <span>{error}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchContacts}
+            className="mr-auto"
+          >
+            إعادة المحاولة
+          </Button>
         </div>
       )}
 
@@ -224,134 +243,146 @@ const ContactMessagesPage = () => {
       )}
 
       {/* عرض الرسائل */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {contacts.map((msg) => (
-          <Card
-            key={msg._id}
-            className={`transition-all border ${
-              msg.replied 
-                ? 'border-green-400 bg-green-50' 
-                : 'border-orange-300 bg-orange-50'
-            }`}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-start">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="w-5 h-5 text-blue-500" />
-                  {msg.name}
-                </CardTitle>
-                {!msg.replied && (
+      {!loading && contacts.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {contacts.map((msg) => (
+            <Card
+              key={msg._id}
+              className={`transition-all border ${
+                msg.replied 
+                  ? 'border-green-400 bg-green-50' 
+                  : 'border-orange-300 bg-orange-50'
+              }`}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="w-5 h-5 text-blue-500" />
+                    {msg.name}
+                  </CardTitle>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-red-500 text-red-600 hover:bg-red-50 text-xs"
+                    className="border-red-500 text-red-600 hover:bg-red-50 text-xs h-8"
                     onClick={() => handleDeleteMessage(msg._id)}
                     disabled={deleting === msg._id}
                   >
                     {deleting === msg._id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin ml-1" />
                     ) : (
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3 h-3 ml-1" />
                     )}
-                    حذف
+                    {deleting === msg._id ? 'جاري الحذف...' : 'حذف'}
                   </Button>
-                )}
-              </div>
-              <p className="text-sm text-gray-500">{msg.email}</p>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-2 mb-4">
-                <MessageSquare className="w-5 h-5 text-gray-400 mt-1" />
-                <p className="text-gray-700 leading-relaxed break-words">{msg.message}</p>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>{new Date(msg.createdAt).toLocaleString('ar-EG')}</span>
-                {msg.replied ? (
-                  <span className="flex items-center gap-1 text-green-600">
-                    <CheckCircle2 className="w-4 h-4" /> تم الرد
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                    onClick={() => openReplyForm(msg)}
-                  >
-                    الرد
-                  </Button>
-                )}
-              </div>
-
-              {/* نموذج الرد */}
-              {replying === msg._id && (
-                <div className="mt-4 p-4 bg-white border border-gray-300 rounded-lg">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold text-gray-900">إرسال رد</h3>
+                </div>
+                <p className="text-sm text-gray-500">{msg.email}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start gap-2 mb-4">
+                  <MessageSquare className="w-5 h-5 text-gray-400 mt-1 flex-shrink-0" />
+                  <p className="text-gray-700 leading-relaxed break-words">{msg.message}</p>
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>{new Date(msg.createdAt).toLocaleString('ar-EG')}</span>
+                  {msg.replied ? (
+                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                      <CheckCircle2 className="w-4 h-4" /> تم الرد
+                    </span>
+                  ) : (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={closeReplyForm}
-                      className="text-gray-500 hover:text-gray-700"
+                      variant="outline"
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                      onClick={() => openReplyForm(msg)}
                     >
-                      <X className="w-4 h-4" />
+                      <Send className="w-3 h-3 ml-1" />
+                      الرد
                     </Button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        الموضوع
-                      </label>
-                      <input
-                        type="text"
-                        value={replyData.subject}
-                        onChange={(e) => setReplyData(prev => ({ ...prev, subject: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        نص الرد
-                      </label>
-                      <textarea
-                        value={replyData.message}
-                        onChange={(e) => setReplyData(prev => ({ ...prev, message: e.target.value }))}
-                        rows={4}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
-                        placeholder="اكتب رسالة الرد هنا..."
-                      />
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleSendReply(msg._id, msg.email)}
-                        disabled={replying === msg._id + '-sending'}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        {replying === msg._id + '-sending' ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                        {replying === msg._id + '-sending' ? 'جاري الإرسال...' : 'إرسال الرد'}
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        onClick={closeReplyForm}
-                        disabled={replying === msg._id + '-sending'}
-                      >
-                        إلغاء
-                      </Button>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+                {/* نموذج الرد */}
+                {replying === msg._id && (
+                  <div className="mt-4 p-4 bg-white border border-gray-300 rounded-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Send className="w-4 h-4 text-blue-600" />
+                        إرسال رد
+                      </h3>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={closeReplyForm}
+                        className="text-gray-500 hover:text-gray-700 h-8 w-8 p-0"
+                        disabled={replying === msg._id + '-sending'}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          الموضوع
+                        </label>
+                        <input
+                          type="text"
+                          value={replyData.subject}
+                          onChange={(e) => setReplyData(prev => ({ ...prev, subject: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          disabled={replying === msg._id + '-sending'}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          نص الرد
+                        </label>
+                        <textarea
+                          value={replyData.message}
+                          onChange={(e) => setReplyData(prev => ({ ...prev, message: e.target.value }))}
+                          rows={4}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+                          placeholder="اكتب رسالة الرد هنا..."
+                          disabled={replying === msg._id + '-sending'}
+                        />
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handleSendReply(msg._id, msg.email)}
+                          disabled={replying === msg._id + '-sending' || !replyData.message.trim()}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {replying === msg._id + '-sending' ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              جاري الإرسال...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              إرسال الرد
+                            </>
+                          )}
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          onClick={closeReplyForm}
+                          disabled={replying === msg._id + '-sending'}
+                        >
+                          إلغاء
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

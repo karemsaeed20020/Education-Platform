@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/courses/page.tsx
 'use client';
 
@@ -13,6 +14,7 @@ import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { Separator } from '@/components/ui/separator';
 import Navbar from '@/components/Navbar';
+import { api } from '@/redux/slices/authSlice'; // Import axios instance
 
 interface Course {
   _id: string;
@@ -61,22 +63,20 @@ export default function CoursesPage() {
       if (filters.level && filters.level !== 'all') queryParams.append('level', filters.level);
       if (filters.search) queryParams.append('search', filters.search);
 
-      const response = await fetch(`http://localhost:5000/api/courses?${queryParams}`);
+      // ✅ Use axios instance instead of fetch
+      const response = await api.get(`/api/courses?${queryParams}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Courses API Response:', data); // Debug log
-        if (data.status === 'success') {
-          setCourses(data.data.courses || []);
-        } else {
-          toast.error('فشل في تحميل الكورسات');
-        }
+      console.log('Courses API Response:', response.data); // Debug log
+      
+      if (response.data.status === 'success') {
+        setCourses(response.data.data.courses || []);
       } else {
-        toast.error('فشل في تحميل الكورسات');
+        toast.error(response.data.message || 'فشل في تحميل الكورسات');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching courses:', error);
-      toast.error('حدث خطأ في تحميل الكورسات');
+      const message = error.response?.data?.message || 'حدث خطأ في تحميل الكورسات';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -88,29 +88,18 @@ export default function CoursesPage() {
     
     setAddingToCart(courseId);
     try {
-      const response = await fetch('http://localhost:5000/api/cart/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ courseId }),
-      });
+      // ✅ Use axios instance instead of fetch
+      const response = await api.post('/api/cart/add', { courseId });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          toast.success('تم إضافة الكورس إلى السلة بنجاح');
-        } else {
-          toast.error(data.message || 'فشل في إضافة الكورس إلى السلة');
-        }
+      if (response.data.status === 'success') {
+        toast.success('تم إضافة الكورس إلى السلة بنجاح');
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'فشل في إضافة الكورس إلى السلة');
+        toast.error(response.data.message || 'فشل في إضافة الكورس إلى السلة');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding to cart:', error);
-      toast.error('حدث خطأ في إضافة الكورس إلى السلة');
+      const message = error.response?.data?.message || 'حدث خطأ في إضافة الكورس إلى السلة';
+      toast.error(message);
     } finally {
       setAddingToCart(null);
     }
@@ -127,6 +116,10 @@ export default function CoursesPage() {
     return `${minutes} دقيقة`;
   };
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('ar-SA').format(price);
+  };
+
   // Debug: Log courses data
   useEffect(() => {
     if (courses.length > 0) {
@@ -134,10 +127,33 @@ export default function CoursesPage() {
     }
   }, [courses]);
 
+  // Loading Skeleton Component
+  const CourseSkeleton = () => (
+    <Card className="animate-pulse border-0 shadow-md">
+      <div className="h-48 bg-gray-200 rounded-t-lg"></div>
+      <CardContent className="p-4">
+        <div className="h-4 bg-gray-200 rounded mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-3/4 mb-4"></div>
+        <div className="flex justify-between mb-4">
+          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+        </div>
+        <div className="flex justify-between">
+          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+        </div>
+      </CardContent>
+      <CardFooter className="p-4 pt-0">
+        <div className="h-10 bg-gray-200 rounded w-full"></div>
+      </CardFooter>
+    </Card>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 py-8">
-        <div className="container mx-auto px-4">
+        <Navbar />
+        <div className="container mx-auto px-4 mt-16">
           {/* Header Skeleton */}
           <div className="text-center mb-8 animate-pulse">
             <div className="h-10 bg-gray-200 rounded w-1/3 mx-auto mb-4"></div>
@@ -145,24 +161,22 @@ export default function CoursesPage() {
           </div>
 
           {/* Filters Skeleton */}
-          <div className="mb-8 animate-pulse">
-            <div className="h-20 bg-gray-200 rounded-lg"></div>
+          <div className="mb-8">
+            <Card className="shadow-lg border-0">
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-12 bg-gray-200 rounded"></div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Courses Grid Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <div className="h-48 bg-gray-200 rounded-t-lg"></div>
-                <CardContent className="p-4">
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-3/4 mb-4"></div>
-                  <div className="flex justify-between">
-                    <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/4"></div>
-                  </div>
-                </CardContent>
-              </Card>
+              <CourseSkeleton key={i} />
             ))}
           </div>
         </div>
@@ -238,6 +252,9 @@ export default function CoursesPage() {
               {filters.search && (
                 <span> لـ<span className="font-semibold">{filters.search}</span></span>
               )}
+              {(filters.grade !== 'all' || filters.level !== 'all') && (
+                <span> مع الفلاتر المحددة</span>
+              )}
             </p>
           </div>
         )}
@@ -311,8 +328,12 @@ export default function CoursesPage() {
                       <div className="flex items-center gap-1 text-sm">
                         <div className="flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded-full">
                           <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                          <span className="font-semibold text-yellow-700">{course.rating?.average?.toFixed(1) || '0.0'}</span>
-                          <span className="text-gray-500 text-xs">({course.rating?.count || 0})</span>
+                          <span className="font-semibold text-yellow-700">
+                            {course.rating?.average?.toFixed(1) || '0.0'}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            ({course.rating?.count || 0})
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -364,15 +385,15 @@ export default function CoursesPage() {
                         {course.discountPrice ? (
                           <div className="flex items-center gap-2">
                             <span className="text-lg font-bold text-green-600">
-                              {course.discountPrice} ر.س
+                              {formatPrice(course.discountPrice)} ر.س
                             </span>
                             <span className="text-sm text-gray-500 line-through">
-                              {course.price} ر.س
+                              {formatPrice(course.price)} ر.س
                             </span>
                           </div>
                         ) : (
                           <span className="text-lg font-bold text-gray-900">
-                            {course.price} ر.س
+                            {formatPrice(course.price)} ر.س
                           </span>
                         )}
                       </div>
@@ -381,7 +402,7 @@ export default function CoursesPage() {
                   
                   <CardFooter className="p-4 pt-0">
                     <Button 
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 transition-all duration-200"
                       onClick={(e) => addToCart(course._id, e)}
                       disabled={addingToCart === course._id}
                     >

@@ -51,7 +51,7 @@ export default function AdminLayout({
       <Navbar 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
-        user={user}
+        // user={user}
       />
       
       <Sidebar 

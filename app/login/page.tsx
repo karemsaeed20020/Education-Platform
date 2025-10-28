@@ -85,30 +85,7 @@ export default function Login() {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* Mobile: Show image at top */}
-      <div 
-        className="relative w-full h-48 md:hidden"
-        style={{
-          background: imageError ? fallbackGradient : 'none'
-        }}
-      >
-        {!imageError ? (
-          <Image
-            src={educationImage}
-            alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
-            fill
-            className="object-cover"
-            priority
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-white">
-            <div className="text-center p-4">
-              <h3 className="text-xl font-bold mb-2">منصة التعليم الإلكتروني</h3>
-              <p className="text-sm">سجل دخولك إلى عالم المعرفة</p>
-            </div>
-          </div>
-        )}
-      </div>
+      
 
       {/* Form Section */}
       <div className="flex flex-col justify-center w-full md:w-7/12 p-6 md:p-8 bg-white">
@@ -267,7 +244,7 @@ export default function Login() {
       >
         {!imageError ? (
           <Image
-            src="/SignIn.jpg" // Use absolute path from public directory
+            src="/SignIn.JPG" // Use absolute path from public directory
             alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
             fill
             className="object-cover"

@@ -128,7 +128,7 @@ export default function Register() {
       >
         {!imageError ? (
           <Image
-            src={'/02.jpg'}
+            src={'/02.JPG'}
             alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
             fill
             className="object-cover"
@@ -154,7 +154,7 @@ export default function Register() {
       >
         {imageError ? (
           <Image
-            src={'/02.jpg'}
+            src={'/02.JPG'}
             alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
             fill
             className="object-cover"

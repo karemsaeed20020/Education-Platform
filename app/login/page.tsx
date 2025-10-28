@@ -244,7 +244,7 @@ export default function Login() {
       >
         {!imageError ? (
           <Image
-            src="/SignIn.JPG" // Use absolute path from public directory
+            src={'/fonts/02.JPG'} // Use absolute path from public directory
             alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
             fill
             className="object-cover"

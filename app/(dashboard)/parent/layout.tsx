@@ -4,56 +4,51 @@ import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/redux/store';
 import Sidebar from '@/components/parents/Sidebar';
-import Navbar from '@/components/admin/Navbar';
+import Navabr from '@/components/admin/Navbar';
 
-export default function AdminLayout({
+export default function ParentLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false); // مغلق افتراضيًا على الجوال
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { user } = useSelector((state: RootState) => state.auth);
 
   // اكتشاف حجم الشاشة
   useEffect(() => {
     const checkScreenSize = () => {
-      const mobile = window.innerWidth < 1024; // lg breakpoint
+      const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       
-      // على الديسكتوب، افتح السايدبار افتراضيًا
-      if (!mobile && !sidebarOpen) {
+      // On desktop, open sidebar by default
+      if (!mobile) {
         setSidebarOpen(true);
-      }
-      
-      // على الجوال، تأكد من إغلاق السايدبار
-      if (mobile && sidebarOpen) {
+      } else {
         setSidebarOpen(false);
       }
     };
 
-    // التحقق أول مرة
     checkScreenSize();
-
-    // الاستماع لتغييرات حجم الشاشة
     window.addEventListener('resize', checkScreenSize);
 
     return () => {
       window.removeEventListener('resize', checkScreenSize);
     };
-  }, [sidebarOpen]);
+  }, []);
 
-  // إغلاق السايدبار عند النقر على الـ overlay
-  const handleOverlayClick = () => {
-    setSidebarOpen(false);
-  };
-
-  // إغلاق السايدبار تلقائيًا عند تغيير المسار على الجوال
-  React.useEffect(() => {
+  // منع التمرير عندما يكون السايدبار مفتوحًا على الجوال
+  useEffect(() => {
     if (isMobile && sidebarOpen) {
-      setSidebarOpen(false);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  }, [isMobile]); // يمكنك إضافة المسار الحالي هنا إذا أردت
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [sidebarOpen, isMobile]);
 
   if (!user) {
     return (
@@ -65,17 +60,16 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 rtl" dir="rtl">
-      <Navbar 
+      <Navabr 
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen} 
-        user={user}
       />
       
-      {/* Sidebar Overlay - يظهر فقط على الجوال وعند فتح السايدبار */}
+      {/* Overlay */}
       {sidebarOpen && isMobile && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
-          onClick={handleOverlayClick}
+          className="fixed inset-0 bg-gray-900 bg-opacity-70 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setSidebarOpen(false)}
         />
       )}
       
@@ -84,14 +78,11 @@ export default function AdminLayout({
         setSidebarOpen={setSidebarOpen} 
       />
       
-      <main
-        className={`transition-all duration-300 ease-in-out min-h-screen ${
-          sidebarOpen && !isMobile 
-            ? 'lg:mr-[280px]' 
-            : 'mr-0'
-        } pt-16 bg-gray-50`}
-      >
-        <div className="p-4 lg:p-6">
+      {/* Main Content */}
+      <main className={`min-h-screen transition-all duration-300 ${
+        sidebarOpen && !isMobile ? 'lg:mr-80' : 'mr-0'
+      } pt-16`}>
+        <div className="p-4 lg:p-6 w-full">
           {children}
         </div>
       </main>           

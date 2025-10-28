@@ -58,17 +58,17 @@ export default function Login() {
   }, [user, loading, router]);
 
   // Add this useEffect to your login component to verify token is working
-useEffect(() => {
-  if (user && user.role === 'admin') {
-    console.log('✅ Login successful, user:', user);
-    console.log('🔐 Token should be automatically included in all API calls');
-    
-    // Test if we can access admin routes
-    setTimeout(() => {
-      router.push('/admin/dashboard');
-    }, 1000);
-  }
-}, [user, router]);
+  useEffect(() => {
+    if (user && user.role === 'admin') {
+      console.log('✅ Login successful, user:', user);
+      console.log('🔐 Token should be automatically included in all API calls');
+      
+      // Test if we can access admin routes
+      setTimeout(() => {
+        router.push('/admin/dashboard');
+      }, 1000);
+    }
+  }, [user, router]);
 
   
   function onSubmit(values: LoginValues) {
@@ -267,7 +267,7 @@ useEffect(() => {
       >
         {!imageError ? (
           <Image
-            src={educationImage}
+            src="/SignIn.jpg" // Use absolute path from public directory
             alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
             fill
             className="object-cover"

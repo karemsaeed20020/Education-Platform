@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import toast from "react-hot-toast";
+import Sign from '@/public/02.jpg';
 
 export default function Register() {
   const form = useForm<RegisterValues>({
@@ -127,7 +128,7 @@ export default function Register() {
       >
         {!imageError ? (
           <Image
-            src={educationImage}
+            src={'/02.jpg'}
             alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
             fill
             className="object-cover"
@@ -151,9 +152,9 @@ export default function Register() {
           background: imageError ? fallbackGradient : 'none'
         }}
       >
-        {!imageError ? (
+        {imageError ? (
           <Image
-            src={educationImage}
+            src={'/02.jpg'}
             alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
             fill
             className="object-cover"

@@ -1,131 +1,134 @@
-    'use client';
+'use client';
 
-    import React from 'react';
-    import {
-    Home,
-    Calendar,
-    User,
-    Globe,
-    Video,
-    UserCircle,
-    Bell,
-    BookMarked,
-    PhoneCall,
-    } from 'lucide-react';
-    import Link from 'next/link';
-    import { usePathname } from 'next/navigation';
-    import { useSelector } from 'react-redux';
-    import { RootState } from '@/redux/store';
+import React from 'react';
+import {
+  Calendar,
+  User,
+  Bell,
+  BookMarked,
+  PhoneCall,
+  X
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
 
-    interface SidebarProps {
-    sidebarOpen: boolean;
-    setSidebarOpen: (open: boolean) => void;
+interface SidebarProps {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
+  const pathname = usePathname();
+  const { user } = useSelector((state: RootState) => state.auth);
+
+  const menuItems = [
+    { 
+      icon: BookMarked, 
+      label: 'الحضور', 
+      href: '/parent/attendance', 
+      active: pathname === '/parent/attendance' 
+    },
+    { 
+      icon: Calendar, 
+      label: 'النتائج', 
+      href: '/parent/results', 
+      active: pathname === '/parent/results' 
+    },
+    { 
+      icon: Bell, 
+      label: 'التقارير', 
+      href: '/parent/reports', 
+      active: pathname === '/parent/reports' 
+    },
+    { 
+      icon: PhoneCall, 
+      label: 'المحادثات', 
+      href: '/parent/chats', 
+      active: pathname === '/parent/chats' 
+    },
+  ];
+
+  const handleLinkClick = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
     }
+  };
 
-    const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen }) => {
-    const pathname = usePathname();
-    const { user } = useSelector((state: RootState) => state.auth);
+  return (
+    <>
+      {/* Sidebar - Use hidden class when closed */}
+      <aside
+        className={`fixed right-0 top-0 h-full bg-white shadow-xl border-l border-gray-200 transition-all duration-300 ease-in-out z-40 ${
+          sidebarOpen 
+            ? 'translate-x-0 opacity-100 visible' 
+            : 'translate-x-full opacity-0 invisible lg:invisible'
+        } w-80`}
+      >
+        {/* Header with close button for both mobile and desktop */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white h-16">
+          <h2 className="text-lg font-semibold text-gray-800">قائمة ولي الأمر</h2>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-5 w-5 text-gray-600" />
+          </button>
+        </div>
 
-    const menuItems = [
-        // { 
-        // icon: Home, 
-        // label: 'الرئيسية', 
-        // href: '/parent', 
-        // active: pathname === '/parent/' 
-        // },
-        { 
-        icon: BookMarked, 
-        label: 'الحضور', 
-        href: '/parent/attendance', 
-        active: pathname === '/parent/attendance' 
-        },
-        { 
-        icon: Calendar, 
-        label: 'النتائج', 
-        href: '/parent/results', 
-        active: pathname === '/parent/results' 
-        },
-        { 
-        icon: Bell, 
-        label: 'التقارير', 
-        href: '/parent/reports', 
-        active: pathname === '/parent/reports' 
-        },
-        // { 
-        // icon: UserCircle, 
-        // label: 'الملف الشخصي', 
-        // href: '/parent/profile', 
-        // active: pathname === '/parent/profile' 
-        // },
-        { 
-        icon: PhoneCall, 
-        label: 'المحادثات', 
-        href: '/parent/chats', 
-        active: pathname === '/parent/chats' 
-        },
-    ];
-
-    return (
-        <aside
-        className={`fixed right-0 top-16 h-full bg-white shadow-lg border-l border-gray-200 transition-transform duration-300 ease-in-out z-40 ${
-            sidebarOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        style={{ width: '280px' }}
-        >
-        <div className="h-full flex flex-col">
-            {/* Profile Card */}
-            <div className="flex-1 px-4 py-6">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 mb-6 border border-blue-100">
-                <div className="flex items-center gap-3">
+        {/* Content with proper top spacing */}
+        <div className="h-full flex flex-col overflow-y-auto" style={{ height: 'calc(100% - 4rem)' }}>
+          {/* Profile Card */}
+          <div className="px-6 py-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center">
-                    {user?.avatar ? (
+                  {user?.avatar ? (
                     <img
-                        src={user.avatar}
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
+                      src={user.avatar}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
                     />
-                    ) : (
+                  ) : (
                     <User className="h-6 w-6 text-white" />
-                    )}
+                  )}
                 </div>
                 <div>
-                    <h3 className="font-semibold text-gray-900">{user?.username || 'اسم المستخدم'}</h3>
-                    <div className="flex items-center gap-1 mt-1">
-                    
-                    </div>
+                  <h3 className="font-semibold text-gray-900">{user?.username || 'ولي الأمر'}</h3>
+                  <p className="text-xs text-gray-500 mt-1">نظام متابعة الطلاب</p>
                 </div>
-                </div>
+              </div>
             </div>
+          </div>
 
-            {/* Menu Items */}
-            <nav className="space-y-1">
-                {menuItems.map((item, index) => {
+          {/* Menu Items */}
+          <nav className="flex-1 px-4 pb-6">
+            <div className="space-y-2">
+              {menuItems.map((item, index) => {
                 const Icon = item.icon;
                 return (
-                    <Link
+                  <Link
                     key={index}
                     href={item.href}
-                    className={`flex items-center justify-between px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
-                        item.active
-                        ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-500'
+                    onClick={handleLinkClick}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      item.active
+                        ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-500 shadow-sm'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }`}
-                    >
-                    <div className="flex items-center gap-3">
-                        <Icon className="h-5 w-5" />
-                        <span>{item.label}</span>
-                    </div>
-                    </Link>
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                  </Link>
                 );
-                })}
-            </nav>
+              })}
             </div>
-
-            {/* Upgrade Card */}
-            
+          </nav>
         </div>
-        </aside>
-    );
-    };
+      </aside>
+    </>
+  );
+};
 
-    export default Sidebar;
+export default Sidebar;

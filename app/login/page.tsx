@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -38,9 +37,6 @@ export default function Login() {
   const router = useRouter();
 
   const { user, loading, error } = useSelector((state: RootState) => state.auth);
-
-  // External education image from Unsplash
-  const educationImage = "https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80";
 
   // Fallback gradient if image fails to load
   const fallbackGradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
@@ -84,13 +80,10 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      {/* Mobile: Show image at top */}
-      
-
-      {/* Form Section */}
-      <div className="flex flex-col justify-center w-full md:w-7/12 p-6 md:p-8 bg-white">
+      {/* Form Section - Centered on mobile */}
+      <div className="flex flex-col justify-center w-full md:w-7/12 p-6 md:p-8 bg-white min-h-screen md:min-h-0">
         <motion.div
-          className="w-full max-w-lg mx-auto"
+          className="w-full max-w-lg mx-auto my-auto" // Added my-auto for vertical centering
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
@@ -100,7 +93,7 @@ export default function Login() {
           </h1>
 
           {/* Error Message */}
-          {error && (
+          {/* {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -108,7 +101,7 @@ export default function Login() {
             >
               {error}
             </motion.div>
-          )}
+          )} */}
 
           <Form {...form}>
             <form
@@ -243,14 +236,22 @@ export default function Login() {
         }}
       >
         {!imageError ? (
-          <Image
-            src={'/fonts/02.JPG'} // Use absolute path from public directory
-            alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
-            fill
-            className="object-cover"
-            priority
-            onError={() => setImageError(true)}
-          />
+          <div className="w-full h-full">
+            <img
+              src="/fonts/02.JPG"
+              alt="منصة التعليم الإلكتروني - سجل دخولك إلى عالم المعرفة"
+              className="w-full h-full object-cover"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+              onError={() => setImageError(true)}
+            />
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white">
             <div className="text-center p-8">

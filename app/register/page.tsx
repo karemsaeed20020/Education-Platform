@@ -1,5 +1,4 @@
 'use client';
-import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -31,7 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import toast from "react-hot-toast";
-import Sign from '@/public/02.jpg';
 
 export default function Register() {
   const form = useForm<RegisterValues>({
@@ -55,9 +53,6 @@ export default function Register() {
   
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-
-  // Single external education image from Unsplash
-  const educationImage = "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
 
   // Fallback gradient if image fails to load
   const fallbackGradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
@@ -127,14 +122,23 @@ export default function Register() {
         }}
       >
         {!imageError ? (
-          <Image
-            src={'/fonts/02.JPG'}
-            alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
-            fill
-            className="object-cover"
-            priority
-            onError={() => setImageError(true)}
-          />
+          <div className="w-full h-full">
+            <img
+              src="/fonts/02.JPG"
+              alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
+              className="w-full h-full object-cover"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+              onError={() => setImageError(true)}
+              onLoad={() => console.log('Desktop image loaded successfully')}
+            />
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white">
             <div className="text-center p-8">
@@ -146,20 +150,19 @@ export default function Register() {
       </div>
 
       {/* Mobile: Show image at top */}
-      <div 
+      {/* <div 
         className="relative w-full h-48 md:hidden"
         style={{
           background: imageError ? fallbackGradient : 'none'
         }}
       >
-        {imageError ? (
-          <Image
-            src={'/02.JPG'}
+        {!imageError ? (
+          <img
+            src="/fonts/02.JPG"
             alt="منصة التعليم الإلكتروني - انضم إلى مجتمعنا التعليمي"
-            fill
-            className="object-cover"
-            priority
+            className="w-full h-full object-cover"
             onError={() => setImageError(true)}
+            onLoad={() => console.log('Mobile image loaded successfully')}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white">
@@ -169,13 +172,13 @@ export default function Register() {
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 
-      {/* Form Section */}
-      <div className="flex flex-col justify-center w-full md:w-7/12 p-6 md:p-8 bg-white">
+      {/* Form Section - Centered on mobile */}
+      <div className="flex flex-col justify-center w-full md:w-7/12 p-6 md:p-8 bg-white min-h-screen md:min-h-0">
         {/* Animated Form Container */}
         <motion.div
-          className="w-full max-w-lg mx-auto"
+          className="w-full max-w-lg mx-auto my-auto"
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
